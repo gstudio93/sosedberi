@@ -89,6 +89,20 @@ console.log("ITEM ID:", itemId);
     }
 console.log("LOADED MESSAGES:", data);
     setMessages(data || []);
+    const { data: authData } =
+  await supabase.auth.getUser();
+
+const currentUser = authData.user;
+
+if (currentUser) {
+  await supabase
+    .from("messages")
+    .update({
+      is_read: true,
+    })
+    .eq("receiver_id", currentUser.id)
+    .eq("item_id", itemId);
+}
   }
 
   // ---------------- SEND MESSAGE (FIXED SAFE) ----------------

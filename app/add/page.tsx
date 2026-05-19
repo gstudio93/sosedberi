@@ -2,17 +2,40 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { CITIES } from "@/lib/cities";
+import { CATEGORIES } from "@/lib/categories";
 const { data: { user } } = await supabase.auth.getUser();
 export default function AddItemPage() {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [location, setLocation] = useState("");
+  const [image, setImage] = useState<File | null>(null);
   const [emoji, setEmoji] = useState("📦");
   const [file, setFile] = useState<any>(null);
-const [category, setCategory] = useState("Техника");
-const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
+  const [description, setDescription] = useState("");
  async function handleSubmit(e: any) {
   e.preventDefault();
+  let imageUrl = "";
+
+if (image) {
+  const fileName = `${Date.now()}-${image.name}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("items")
+    .upload(fileName, image);
+
+  if (uploadError) {
+    console.log("UPLOAD ERROR:", uploadError);
+    return;
+  }
+
+  const { data } = supabase.storage
+    .from("items")
+    .getPublicUrl(fileName);
+
+  imageUrl = data.publicUrl;
+}
 
   console.log("START");
 
@@ -27,34 +50,6 @@ const [description, setDescription] = useState("");
     return;
   }
 
-  let imageUrl = "";
-
-  if (file) {
-    console.log("UPLOAD START");
-
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${Date.now()}.${fileExt}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("items")
-      .upload(fileName, file);
-
-    console.log("UPLOAD END");
-
-    if (uploadError) {
-      console.log(uploadError);
-      alert(JSON.stringify(uploadError));
-      return;
-    }
-
-    const { data } = supabase.storage
-      .from("items")
-      .getPublicUrl(fileName);
-
-    imageUrl = data.publicUrl;
-
-    console.log("IMAGE URL", imageUrl);
-  }
 
   console.log("INSERT START");
 
@@ -112,18 +107,38 @@ const [description, setDescription] = useState("");
             value={price}
             onChange={(e) => setPrice(e.target.value)}
           />
-<textarea
-  value={description}
-  onChange={(e) => setDescription(e.target.value)}
-  placeholder="Описание вещи"
-  className="w-full rounded-2xl bg-white/5 p-4 text-white outline-none"
-/>
-          <input
-            className="w-full rounded-xl bg-white/5 p-4 outline-none"
-            placeholder="Город"
+            <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Описание вещи"
+            className="w-full rounded-2xl bg-white/5 p-4 text-white outline-none"
+          />
+            <select
+            className="w-full rounded-xl bg-white/5 p-4 outline-none text-white"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-          />
+          >
+            <option value="">Выберите город</option>
+
+            {CITIES.map((city) => (
+            <option key={city} value={city}>
+            {city}
+            </option>
+            ))}
+          </select>
+          <select
+  value={category}
+  onChange={(e) => setCategory(e.target.value)}
+  className="w-full rounded-xl bg-white/5 p-4 text-white outline-none"
+>
+  <option value="">Выберите категорию</option>
+
+  {CATEGORIES.map((cat) => (
+    <option key={cat} value={cat}>
+      {cat}
+    </option>
+  ))}
+</select>
 
           <input
             className="w-full rounded-xl bg-white/5 p-4 outline-none"
@@ -131,27 +146,23 @@ const [description, setDescription] = useState("");
             value={emoji}
             onChange={(e) => setEmoji(e.target.value)}
           />
-
           <input
   type="file"
-  onChange={(e: any) => setFile(e.target.files[0])}
+  accept="image/*"
+  onChange={(e) => {
+    if (e.target.files?.[0]) {
+      setImage(e.target.files[0]);
+    }
+  }}
   className="w-full rounded-xl bg-white/5 p-4"
-/><select
-  value={category}
-  onChange={(e) => setCategory(e.target.value)}
-  className="w-full rounded-2xl bg-white/5 p-4 outline-none"
->
-  <option>Техника</option>
-  <option>Инструменты</option>
-  <option>Спорт</option>
-  <option>Отдых</option>
-</select>
+/>
+
           <button
-            type="submit"
-            className="w-full rounded-xl bg-white py-4 font-semibold text-black"
-          >
-            Добавить
-          </button>
+  type="submit"
+  className="rounded-2xl bg-white px-6 py-4 font-bold text-black"
+>
+  Добавить
+</button>
         </form>
       </div>
     </main>
