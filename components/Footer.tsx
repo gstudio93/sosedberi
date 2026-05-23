@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function Footer() {
   return (
-    <footer className="border-t border-white/10 bg-[#0B0B0B]">
+    <footer className="border-t border-black/10 bg-white text-[#111111]">
 
       <div className="mx-auto max-w-7xl px-6 py-20">
 
@@ -15,7 +15,7 @@ export default function Footer() {
               SosedBeri
             </h2>
 
-            <p className="mt-5 max-w-sm text-sm leading-7 text-white/50">
+            <p className="mt-5 max-w-sm text-sm leading-7 text-[#6B6B6B]">
               Арендуйте вещи у людей рядом:
               инструменты, камеры, технику,
               спортинвентарь и многое другое.
@@ -30,7 +30,7 @@ export default function Footer() {
               Пользователям
             </h3>
 
-            <div className="mt-6 flex flex-col gap-4 text-sm text-white/60">
+            <div className="mt-6 flex flex-col gap-4 text-sm text-[#6B6B6B]">
 
               <Link href="/">
                 Каталог
@@ -59,7 +59,7 @@ export default function Footer() {
               Аренда
             </h3>
 
-            <div className="mt-6 flex flex-col gap-4 text-sm text-white/60">
+            <div className="mt-6 flex flex-col gap-4 text-sm text-[#6B6B6B]">
 
               <Link href="/add">
                 Сдать вещь
@@ -88,7 +88,7 @@ export default function Footer() {
               Контакты
             </h3>
 
-            <div className="mt-6 flex flex-col gap-4 text-sm text-white/60">
+            <div className="mt-6 flex flex-col gap-4 text-sm text-[#6B6B6B]">
 
               <a href="mailto:hello@sosedberi.ru">
                 hello@sosedberi.ru
@@ -113,7 +113,7 @@ export default function Footer() {
         </div>
 
         {/* BOTTOM */}
-        <div className="mt-20 flex flex-col items-center justify-between gap-6 border-t border-white/10 pt-8 text-sm text-white/40 md:flex-row">
+        <div className="mt-20 flex flex-col items-center justify-between gap-6 border-t border-black/10 pt-8 text-sm text-[#8D8D8D] md:flex-row">
 
           <div>
             © 2025 SosedBeri

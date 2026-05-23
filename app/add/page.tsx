@@ -10,75 +10,138 @@ export default function AddItemPage() {
   const [price, setPrice] = useState("");
   const [location, setLocation] = useState("");
   const [image, setImage] = useState<File | null>(null);
+  const [images, setImages] = useState<string[]>([]);
   const [emoji, setEmoji] = useState("📦");
   const [file, setFile] = useState<any>(null);
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
- async function handleSubmit(e: any) {
-  e.preventDefault();
-  let imageUrl = "";
-
-if (image) {
-  const fileName = `${Date.now()}-${image.name}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from("items")
-    .upload(fileName, image);
-
-  if (uploadError) {
-    console.log("UPLOAD ERROR:", uploadError);
+  const [suggestions, setSuggestions] =
+  useState<any[]>([]);
+  async function fetchSuggestions(query: string) {
+  if (query.length < 3) {
+    setSuggestions([]);
     return;
   }
 
-  const { data } = supabase.storage
-    .from("items")
-    .getPublicUrl(fileName);
+  try {
+    const response = await fetch(
+      `https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY}&format=json&results=5&geocode=${encodeURIComponent(query)}`
+    );
 
-  imageUrl = data.publicUrl;
+    const data = await response.json();
+
+    const results =
+      data.response.GeoObjectCollection.featureMember || [];
+
+    setSuggestions(results);
+  } catch (error) {
+    console.log("SUGGEST ERROR:", error);
+    setSuggestions([]);
+  }
 }
+  async function getCoordinates(address: string) {
+  try {
+    const response = await fetch(
+      `https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY}&format=json&geocode=${encodeURIComponent(address)}`
+    );
 
-  console.log("START");
+    const data = await response.json();
 
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+    const feature =
+      data.response.GeoObjectCollection
+        .featureMember[0];
 
-  console.log("USER", user);
+    if (!feature) {
+      return {
+        latitude: null,
+        longitude: null,
+      };
+    }
+
+    const pos =
+      feature.GeoObject.Point.pos;
+
+    const [longitude, latitude] =
+      pos.split(" ").map(Number);
+
+    return {
+      latitude,
+      longitude,
+    };
+  } catch (error) {
+    console.log(error);
+
+    return {
+      latitude: null,
+      longitude: null,
+    };
+  }
+}
+async function uploadImages(files: File[]) {
+  const uploadedUrls: string[] = [];
+
+  for (const file of files) {
+    const fileName = `${Date.now()}-${file.name}`;
+
+    const { error } = await supabase.storage
+      .from("items")
+      .upload(fileName, file);
+
+    if (error) {
+      console.log(error);
+      alert("Ошибка загрузки фото");
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("items")
+      .getPublicUrl(fileName);
+
+    uploadedUrls.push(data.publicUrl);
+  }
+
+  setImages(uploadedUrls);
+  setImage(uploadedUrls[0] || "");
+}
+async function handleSubmit(e: any) {
+  e.preventDefault();
+
+  const { data } = await supabase.auth.getUser();
+  const user = data.user;
 
   if (!user) {
-    alert("Войдите в аккаунт");
+    alert("Войдите");
     return;
   }
 
+  const coords = await getCoordinates(location);
 
-  console.log("INSERT START");
+  console.log("COORDS:", coords);
 
-  const { error } = await supabase
-    .from("items")
-    .insert([
-      {
-        name,
-        price,
-        category,
-        location,
-        emoji,
-        image: imageUrl,
-        description,
-        owner_id: user.id
-      }
-    ]);
+  const { error } = await supabase.from("items").insert([
+    {
+      name,
+      description,
+      price,
+      location,
+      category,
+      image,
 
-  console.log("INSERT END");
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+
+      owner_id: user.id,
+    },
+  ]);
 
   if (error) {
-    console.log(error);
-    alert(JSON.stringify(error));
+    console.log("CREATE ITEM ERROR:", error);
+    alert(error.message);
     return;
   }
 
   alert("Объявление создано");
 }
-
   return (
     <main className="min-h-screen bg-black px-6 py-16 text-white">
       <div className="mx-auto max-w-xl">
@@ -113,19 +176,48 @@ if (image) {
             placeholder="Описание вещи"
             className="w-full rounded-2xl bg-white/5 p-4 text-white outline-none"
           />
-            <select
-            className="w-full rounded-xl bg-white/5 p-4 outline-none text-white"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-          >
-            <option value="">Выберите город</option>
+            <div className="relative">
 
-            {CITIES.map((city) => (
-            <option key={city} value={city}>
-            {city}
-            </option>
-            ))}
-          </select>
+  <input
+    value={location}
+    onChange={(e) => {
+      setLocation(e.target.value);
+
+      fetchSuggestions(
+        e.target.value
+      );
+    }}
+    placeholder="Город, улица, дом"
+    className="w-full rounded-2xl bg-white/5 p-4 outline-none"
+  />
+
+  {/* DROPDOWN */}
+  {suggestions.length > 0 && (
+    <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-2xl bg-[#111111] shadow-2xl">
+
+      {suggestions.map(
+        (item: any, index) => (
+          <button
+  key={index}
+  type="button"
+  onClick={() => {
+    setLocation(
+      item.GeoObject.metaDataProperty.GeocoderMetaData.text
+    );
+
+    setSuggestions([]);
+  }}
+  className="w-full border-b border-white/5 px-5 py-4 text-left transition hover:bg-white/5"
+>
+  {item.GeoObject.metaDataProperty.GeocoderMetaData.text}
+</button>
+        )
+      )}
+
+    </div>
+  )}
+
+</div>
           <select
   value={category}
   onChange={(e) => setCategory(e.target.value)}
@@ -140,21 +232,16 @@ if (image) {
   ))}
 </select>
 
-          <input
-            className="w-full rounded-xl bg-white/5 p-4 outline-none"
-            placeholder="Emoji"
-            value={emoji}
-            onChange={(e) => setEmoji(e.target.value)}
-          />
+          
           <input
   type="file"
+  multiple
   accept="image/*"
   onChange={(e) => {
-    if (e.target.files?.[0]) {
-      setImage(e.target.files[0]);
-    }
+    const files = Array.from(e.target.files || []);
+    uploadImages(files);
   }}
-  className="w-full rounded-xl bg-white/5 p-4"
+  className="w-full rounded-2xl bg-white/5 p-4"
 />
 
           <button

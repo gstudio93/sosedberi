@@ -1,64 +1,44 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../../../lib/supabase";
 import { useParams } from "next/navigation";
-
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+
+import { supabase } from "../../../lib/supabase";
 
 export default function ItemPage() {
   const params = useParams();
   const id = params.id as string;
 
   const [item, setItem] = useState<any>(null);
+  const [ownerProfile, setOwnerProfile] = useState<any>(null);
 
   const [bookings, setBookings] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [isFavorite, setIsFavorite] = useState(false);
 
-  const [startDate, setStartDate] =
-    useState<Date | null>(null);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [activeImage, setActiveImage] = useState("");
 
-  const [endDate, setEndDate] =
-    useState<Date | null>(null);
-  const [reviewText, setReviewText] =
-  useState("");
+  const [reviewText, setReviewText] = useState("");
+  const [rating, setRating] = useState(5);
 
-const [rating, setRating] =
-  useState(5);
+  useEffect(() => {
+    if (!id) return;
 
-const [reviews, setReviews] =
-  useState<any[]>([]);
-
-useEffect(() => {
-  if (id) {
     loadItem();
     loadBookings();
     loadReviews();
     checkFavorite();
-  }
-}, [id]);
+  }, [id]);
 
-useEffect(() => {
-  if (item?.owner_id) {
-    loadOwnerProfile();
-  }
-}, [item]);
-
-const [isFavorite, setIsFavorite] =
-  useState(false);
-
-const [ownerProfile, setOwnerProfile] =
-  useState<any>(null);
-  
-  async function loadOwnerProfile() {
-  const { data } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", item.owner_id)
-    .single();
-
-  setOwnerProfile(data);
-}
+  useEffect(() => {
+    if (item?.owner_id) {
+      loadOwnerProfile();
+    }
+  }, [item]);
 
   async function loadItem() {
     const { data } = await supabase
@@ -68,6 +48,17 @@ const [ownerProfile, setOwnerProfile] =
       .single();
 
     setItem(data);
+    setActiveImage(data?.image || "");
+  }
+
+  async function loadOwnerProfile() {
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", item.owner_id)
+      .single();
+
+    setOwnerProfile(data);
   }
 
   async function loadBookings() {
@@ -78,112 +69,97 @@ const [ownerProfile, setOwnerProfile] =
 
     setBookings(data || []);
   }
+
   async function loadReviews() {
-  const { data } = await supabase
-    .from("reviews")
-    .select("*")
-    .eq("item_id", id)
-    .order("created_at", {
-      ascending: false,
-    });
+    const { data } = await supabase
+      .from("reviews")
+      .select("*")
+      .eq("item_id", id)
+      .order("created_at", { ascending: false });
 
-  setReviews(data || []);
-}
+    setReviews(data || []);
+  }
+
   async function checkFavorite() {
-  const { data } =
-    await supabase.auth.getUser();
+    const { data } = await supabase.auth.getUser();
+    const user = data.user;
 
-  const user = data.user;
+    if (!user) return;
 
-  if (!user) return;
-
-  const { data: favorite } =
-    await supabase
+    const { data: favorite } = await supabase
       .from("favorites")
       .select("*")
       .eq("user_id", user.id)
       .eq("item_id", id)
-      .single();
+      .maybeSingle();
 
-  setIsFavorite(!!favorite);
-}
-  async function handleBooking() {
+    setIsFavorite(!!favorite);
+  }
+
+  async function toggleFavorite() {
     const { data } = await supabase.auth.getUser();
-
     const user = data.user;
 
     if (!user) {
-      alert("Войдите в аккаунт");
+      alert("Войдите");
       return;
     }
-  
-    if (!startDate || !endDate) {
-      alert("Выберите даты");
-      return;
-    }
-  
 
-  async function toggleFavorite() {
-  const { data } =
-    await supabase.auth.getUser();
+    if (isFavorite) {
+      await supabase
+        .from("favorites")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("item_id", id);
 
-  const user = data.user;
-
-  if (!user) {
-    alert("Войдите");
-    return;
-  }
-
-  if (isFavorite) {
-    await supabase
-      .from("favorites")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("item_id", id);
-
-    setIsFavorite(false);
-  } else {
-    await supabase
-      .from("favorites")
-      .insert([
+      setIsFavorite(false);
+    } else {
+      await supabase.from("favorites").insert([
         {
           user_id: user.id,
           item_id: id,
         },
       ]);
 
-    setIsFavorite(true);
+      setIsFavorite(true);
+    }
   }
-}
-    // ПРОВЕРКА ПЕРЕСЕЧЕНИЯ ДАТ
-    const hasConflict = bookings.some(
-      (booking: any) => {
-        return (
-          startDate <=
-            new Date(booking.end_date) &&
-          endDate >=
-            new Date(booking.start_date)
-        );
-      }
-    );
+
+  async function handleBooking() {
+    const { data } = await supabase.auth.getUser();
+    const user = data.user;
+
+    if (!user) {
+      alert("Войдите в аккаунт");
+      return;
+    }
+
+    if (!startDate || !endDate) {
+      alert("Выберите даты");
+      return;
+    }
+
+    const hasConflict = bookings.some((booking: any) => {
+      return (
+        startDate <= new Date(booking.end_date) &&
+        endDate >= new Date(booking.start_date)
+      );
+    });
 
     if (hasConflict) {
       alert("Эти даты уже заняты");
       return;
     }
 
-    // СОЗДАНИЕ БРОНИ
-    const { error } = await supabase
-      .from("bookings")
-      .insert([
-        {
-          item_id: item.id,
-          renter_id: user.id,
-          start_date: startDate.toISOString(),
-          end_date: endDate.toISOString(),
-          status: "pending",
-        },
-      ]);
+    const { error } = await supabase.from("bookings").insert([
+      {
+        item_id: item.id,
+        renter_id: user.id,
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString(),
+        status: "pending",
+      },
+    ]);
 
     if (error) {
       console.log("BOOKING ERROR:", error);
@@ -191,48 +167,31 @@ const [ownerProfile, setOwnerProfile] =
       return;
     }
 
-    // 🔔 УВЕДОМЛЕНИЕ ВЛАДЕЛЬЦУ
-    const { error: notificationError } =
-      await supabase
-        .from("notifications")
-        .insert([
-          {
-            user_id: item.owner_id,
-            text: `Новая бронь: ${item.name}`,
-            link: "/profile",
-          },
-        ]);
-
-    if (notificationError) {
-      console.log(
-        "NOTIFICATION ERROR:",
-        notificationError
-      );
-    }
+    await supabase.from("notifications").insert([
+      {
+        user_id: item.owner_id,
+        text: `Новая бронь: ${item.name}`,
+        link: "/profile",
+      },
+    ]);
 
     alert("Бронирование отправлено");
 
-    // ОБНОВЛЯЕМ BOOKING LIST
     loadBookings();
-
-    // СБРОС ДАТ
     setStartDate(null);
     setEndDate(null);
   }
-async function handleReview() {
-  const { data } =
-    await supabase.auth.getUser();
 
-  const user = data.user;
+  async function handleReview() {
+    const { data } = await supabase.auth.getUser();
+    const user = data.user;
 
-  if (!user) {
-    alert("Войдите в аккаунт");
-    return;
-  }
+    if (!user) {
+      alert("Войдите в аккаунт");
+      return;
+    }
 
-  const { error } = await supabase
-    .from("reviews")
-    .insert([
+    const { error } = await supabase.from("reviews").insert([
       {
         item_id: item.id,
         owner_id: item.owner_id,
@@ -242,281 +201,363 @@ async function handleReview() {
       },
     ]);
 
-  if (error) {
-    console.log(error);
-    alert("Ошибка отзыва");
-    return;
+    if (error) {
+      console.log(error);
+      alert("Ошибка отзыва");
+      return;
+    }
+
+    setReviewText("");
+    setRating(5);
+    loadReviews();
   }
 
-  setReviewText("");
-  setRating(5);
-
-  loadReviews();
-}
- async function toggleFavorite() {
-  const { data } =
-    await supabase.auth.getUser();
-
-  const user = data.user;
-
-  if (!user) {
-    alert("Войдите");
-    return;
-  }
-
-  if (isFavorite) {
-    await supabase
-      .from("favorites")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("item_id", id);
-
-    setIsFavorite(false);
-  } else {
-    await supabase
-      .from("favorites")
-      .insert([
-        {
-          user_id: user.id,
-          item_id: id,
-        },
-      ]);
-
-    setIsFavorite(true);
-  }
-}
   if (!item) {
     return (
-      <main className="min-h-screen bg-black p-10 text-white">
+      <main className="min-h-screen bg-[#F7F7F5] px-6 pb-20 pt-32 text-[#111111]">
         Загрузка...
       </main>
     );
   }
+function getRentalDays() {
+  if (!startDate || !endDate) return 0;
 
+  const diff =
+    endDate.getTime() - startDate.getTime();
+
+  return Math.max(
+    1,
+    Math.ceil(diff / (1000 * 60 * 60 * 24)) + 1
+  );
+}
+
+function getTotalPrice() {
+  const days = getRentalDays();
+  const pricePerDay = Number(item.price) || 0;
+
+  return days * pricePerDay;
+}
   return (
-    <main className="min-h-screen bg-black px-6 py-16 text-white">
-      <div className="mx-auto max-w-3xl">
-
-        {/* IMAGE */}
-        <img
-          src={item.image}
-          className="h-96 w-full rounded-3xl object-cover"
-        />
-
-        {/* TITLE */}
-        <h1 className="mt-6 text-4xl font-black">
-          {item.name}
-        </h1>
-
-        {/* LOCATION */}
-        <p className="mt-2 text-neutral-400">
-          📍 {item.location}
-        </p>
-             <a
-  href={`/user/${item.owner_id}`}
-  className="mt-3 inline-block text-sm text-blue-400"
->
-  Открыть профиль владельца →
-</a>
-<div className="mt-2 flex items-center gap-2 text-sm">
-
-  <div
-    className={`h-3 w-3 rounded-full ${
-      ownerProfile?.is_online
-        ? "bg-green-500"
-        : "bg-neutral-500"
-    }`}
+    <main className="min-h-screen bg-[#F7F7F5] px-6 pb-20 pt-32 text-[#111111]">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 lg:grid-cols-[1fr_420px]">
+        {/* LEFT */}
+        <div>
+          <div className="overflow-hidden rounded-[36px] bg-white shadow-xl">
+  <img
+    src={activeImage || item.image}
+    alt={item.name}
+    className="h-[620px] w-full object-cover"
   />
-
-  {ownerProfile?.is_online
-    ? "Онлайн"
-    : ownerProfile?.last_seen
-    ? `Был: ${new Date(
-        ownerProfile.last_seen
-      ).toLocaleString()}`
-    : "Недавно"}
+</div>
+<div className="mt-4 flex gap-3">
+  {(item.images?.length ? item.images : [item.image]).map(
+  (img: string, index: number) => (
+    <button
+      key={index}
+      onClick={() => setActiveImage(img)}
+      className={`h-20 w-20 overflow-hidden rounded-2xl border-2 transition ${
+        activeImage === img
+          ? "border-[#7BC47F]"
+          : "border-transparent"
+      }`}
+    >
+      <img
+        src={img}
+        alt=""
+        className="h-full w-full object-cover"
+      />
+    </button>
+  )
+)}
 </div>
 
-        {/* PRICE */}
-        <p className="mt-6 text-xl font-bold">
-          {item.price}
-        </p>
-        <button
-  onClick={toggleFavorite}
-  className={`mt-4 rounded-2xl px-6 py-4 font-bold transition ${
-    isFavorite
-      ? "bg-red-500 text-white"
-      : "bg-white/10 text-white"
-  }`}
->
-  {isFavorite
-    ? "❤️ В избранном"
-    : "🤍 В избранное"}
-</button>
+          <p className="mt-4 text-lg text-[#6B6B6B]">
+            📍 {item.location}
+          </p>
 
-        {/* DATEPICKER */}
-        <div className="mt-6 rounded-2xl bg-white/5 p-6">
-          <h2 className="mb-4 text-xl font-bold">
-            Выберите даты
-          </h2>
-
-          <DatePicker
-            selected={startDate}
-            onChange={(dates) => {
-  if (!dates) return;
-
-  const [start, end] = dates as [
-    Date | null,
-    Date | null
-  ];
-
-  setStartDate(start);
-  setEndDate(end);
-}}
-            startDate={startDate}
-            endDate={endDate}
-            selectsRange
-            inline
-            excludeDateIntervals={bookings.map(
-              (booking) => ({
-                start: new Date(
-                  booking.start_date
-                ),
-                end: new Date(
-                  booking.end_date
-                ),
-              })
-            )}
-          />
+          <div className="mt-10 overflow-hidden rounded-[32px] border border-black/5 bg-white shadow-sm">
+  <div className="grid gap-0 lg:grid-cols-[1fr_360px]">
+    {/* OWNER INFO */}
+    <div className="p-8">
+      <div className="flex items-center gap-5">
+        <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-3xl font-black text-white">
+          {ownerProfile?.avatar ? (
+            <img
+              src={ownerProfile.avatar}
+              className="h-full w-full object-cover"
+              alt="Владелец"
+            />
+          ) : (
+            ownerProfile?.full_name?.[0] ||
+            ownerProfile?.email?.[0] ||
+            "П"
+          )}
         </div>
 
-        {/* BOOK BUTTON */}
-        <button
-          onClick={handleBooking}
-          className="mt-4 w-full rounded-2xl bg-white px-6 py-4 font-bold text-black"
-        >
-          Забронировать
-        </button>
+        <div>
+          <div className="text-sm text-[#6B6B6B]">
+            Владелец
+          </div>
 
-        {/* BUSY DATES */}
-        <div className="mt-8 rounded-2xl bg-white/5 p-6">
-          <h2 className="text-xl font-bold">
-            Занятые даты
-          </h2>
+          <a
+            href={`/user/${item.owner_id}`}
+            className="text-3xl font-black text-[#111111] transition hover:text-[#7BC47F]"
+          >
+            {ownerProfile?.full_name || "Пользователь"}
+          </a>
+        </div>
+      </div>
 
-          <div className="mt-4 space-y-3">
-            {bookings.length === 0 ? (
-              <div className="text-neutral-400">
-                Пока свободно
-              </div>
-            ) : (
-              bookings.map((booking) => (
-                <div
-                  key={booking.id}
-                  className="rounded-xl bg-white/5 p-4"
-                >
-                  📅{" "}
-                  {new Date(
-                    booking.start_date
-                  ).toLocaleDateString()}
-                  {" → "}
-                  {new Date(
-                    booking.end_date
-                  ).toLocaleDateString()}
-                </div>
-              ))
-            )}
+      <div className="mt-8 grid gap-4 text-lg text-[#111111]">
+        <div className="flex items-center gap-3">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
+            ✓
+          </span>
+          <span>Профиль подтверждён</span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
+            💬
+          </span>
+          <span>Быстро отвечает на сообщения</span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
+            📍
+          </span>
+          <span>{item.location}</span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
+            🛡
+          </span>
+          <span>
+            Сделка защищена правилами сервиса
+          </span>
+        </div>
+      </div>
+
+      <a
+        href={`/chat/${item.id}?owner=${item.owner_id}`}
+        className="mt-8 block rounded-full border border-[#7BC47F] px-6 py-4 text-center font-bold text-[#111111] transition hover:bg-[#7BC47F] hover:text-white"
+      >
+        Написать владельцу
+      </a>
+    </div>
+
+    {/* MAP */}
+    <div className="min-h-[320px] overflow-hidden bg-[#F7F7F5]">
+      <iframe
+        src={`https://yandex.ru/map-widget/v1/?text=${encodeURIComponent(
+          item.location || "Россия"
+        )}&z=13`}
+        className="h-full min-h-[320px] w-full border-0"
+      />
+    </div>
+  </div>
+</div>
+
+          <div className="mt-10 rounded-[32px] border border-black/5 bg-white p-8 shadow-sm">
+            <h2 className="text-2xl font-black">Описание</h2>
+
+            <p className="mt-5 text-lg leading-relaxed text-[#555555]">
+              {item.description || "Описание не указано"}
+            </p>
+          </div>
+
+          <div className="mt-10 rounded-[32px] border border-black/5 bg-white p-8 shadow-sm">
+            <h2 className="text-2xl font-black">Отзывы</h2>
+
+            <div className="mt-6 space-y-4">
+              <select
+                value={rating}
+                onChange={(e) => setRating(Number(e.target.value))}
+                className="w-full rounded-2xl bg-[#F7F7F5] p-4 outline-none"
+              >
+                <option value={5}>★★★★★</option>
+                <option value={4}>★★★★</option>
+                <option value={3}>★★★</option>
+                <option value={2}>★★</option>
+                <option value={1}>★</option>
+              </select>
+
+              <textarea
+                value={reviewText}
+                onChange={(e) => setReviewText(e.target.value)}
+                placeholder="Напишите отзыв..."
+                className="min-h-[120px] w-full rounded-2xl bg-[#F7F7F5] p-4 outline-none"
+              />
+
+              <button
+                onClick={handleReview}
+                className="rounded-full bg-[#7BC47F] px-8 py-4 font-bold text-white transition hover:bg-[#69B56E]"
+              >
+                Оставить отзыв
+              </button>
+            </div>
+
+            <div className="mt-10 space-y-4">
+              {reviews.length === 0 ? (
+                <div className="text-[#6B6B6B]">Пока нет отзывов</div>
+              ) : (
+                reviews.map((review) => (
+                  <div
+                    key={review.id}
+                    className="rounded-2xl bg-[#F7F7F5] p-5"
+                  >
+                    <div className="text-xl text-[#7BC47F]">
+                      {"★".repeat(review.rating)}
+                    </div>
+
+                    <p className="mt-3 text-[#555555]">{review.text}</p>
+
+                    <div className="mt-4 text-sm text-[#8D8D8D]">
+                      {new Date(review.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
-        {/* REVIEWS */}
-<div className="mt-10 rounded-3xl bg-white/5 p-6">
 
-  <h2 className="text-2xl font-bold">
-    Отзывы
-  </h2>
+        {/* RIGHT SIDEBAR */}
+        <div className="h-fit lg:sticky lg:top-32">
+          <div className="sticky top-28 rounded-[32px] border border-black/5 bg-white p-8 shadow-xl">
+            <h1 className="mb-6 text-4xl font-black leading-tight">
+  {item.name}
+</h1>
+            
 
-  {/* ADD REVIEW */}
-  <div className="mt-6 space-y-4">
+            <button
+              onClick={toggleFavorite}
+              className={`mt-6 w-full rounded-full px-6 py-5 text-lg font-bold transition ${
+                isFavorite
+                  ? "bg-[#7BC47F] text-white"
+                  : "border border-black/10 bg-white text-[#111111]"
+              }`}
+            >
+              {isFavorite ? "❤️ В избранном" : "🤍 В избранное"}
+            </button>
 
-    <select
-      value={rating}
-      onChange={(e) =>
-        setRating(Number(e.target.value))
-      }
-      className="w-full rounded-2xl bg-white/5 p-4"
-    >
-      <option value={5}>★★★★★</option>
-      <option value={4}>★★★★</option>
-      <option value={3}>★★★</option>
-      <option value={2}>★★</option>
-      <option value={1}>★</option>
-    </select>
+            <div className="mt-8 rounded-[32px] bg-[#F7F7F5] p-6">
+              <h2 className="mb-6 text-2xl font-black">
+                Выберите даты
+              </h2>
 
-    <textarea
-      value={reviewText}
-      onChange={(e) =>
-        setReviewText(e.target.value)
-      }
-      placeholder="Напишите отзыв..."
-      className="min-h-[120px] w-full rounded-2xl bg-white/5 p-4 outline-none"
-    />
+              <DatePicker
+                selected={startDate}
+                onChange={(dates) => {
+                  if (!dates) return;
+
+                  const [start, end] = dates as [Date | null, Date | null];
+
+                  setStartDate(start);
+                  setEndDate(end);
+                }}
+                startDate={startDate}
+                endDate={endDate}
+                selectsRange
+                inline
+                excludeDateIntervals={bookings.map((booking) => ({
+                  start: new Date(booking.start_date),
+                  end: new Date(booking.end_date),
+                }))}
+              />
+            </div>
+<div className="mt-6">
+  <div className="text-sm font-bold uppercase tracking-wide text-[#8D8D8D]">
+    Цены
+  </div>
+
+  <div className="mt-4 grid grid-cols-3 gap-3">
+    <div className="rounded-2xl border border-black/10 bg-white p-4 text-center">
+      <div className="text-2xl font-black">
+        {item.price} ₽
+      </div>
+      <div className="mt-1 text-sm text-[#6B6B6B]">
+        1 день
+      </div>
+    </div>
+
+    <div className="rounded-2xl border border-black/10 bg-white p-4 text-center">
+      <div className="text-2xl font-black">
+        {Number(item.price) * 3} ₽
+      </div>
+      <div className="mt-1 text-sm text-[#6B6B6B]">
+        3 дня
+      </div>
+    </div>
+
+    <div className="rounded-2xl border border-black/10 bg-white p-4 text-center">
+      <div className="text-2xl font-black">
+        {Number(item.price) * 7} ₽
+      </div>
+      <div className="mt-1 text-sm text-[#6B6B6B]">
+        7 дней
+      </div>
+    </div>
+  </div>
+</div>
+{startDate && endDate && (
+  <div className="mt-6 border-t border-black/10 pt-6 text-center">
+    <div className="text-4xl font-black">
+      {getTotalPrice()} ₽
+    </div>
+
+    <div className="mt-2 text-[#6B6B6B]">
+      За {getRentalDays()} дн. аренды
+    </div>
 
     <button
-      onClick={handleReview}
-      className="rounded-2xl bg-white px-6 py-4 font-bold text-black"
+      onClick={() => {
+        setStartDate(null);
+        setEndDate(null);
+      }}
+      className="mt-4 text-sm font-bold text-[#7BC47F]"
     >
-      Оставить отзыв
+      Очистить даты
     </button>
-
   </div>
+)}
+            <button
+  onClick={handleBooking}
+  className="mt-5 w-full rounded-full bg-[#7BC47F] px-6 py-5 text-lg font-bold text-white transition hover:bg-[#69B56E]"
+>
+  Забронировать
+</button>
 
-  {/* LIST */}
-  <div className="mt-10 space-y-4">
-
-    {reviews.length === 0 ? (
-      <div className="text-neutral-400">
-        Пока нет отзывов
-      </div>
-    ) : (
-      reviews.map((review) => (
-        <div
-          key={review.id}
-          className="rounded-2xl bg-white/5 p-5"
-        >
-          <div className="text-xl">
-            {"★".repeat(review.rating)}
+            <a
+              href={`/chat/${item.id}?owner=${item.owner_id}`}
+              className="mt-4 block w-full rounded-full border border-black/10 bg-white py-5 text-center text-lg font-bold transition hover:bg-[#F7F7F5]"
+            >
+              Написать владельцу
+            </a>
           </div>
 
-          <p className="mt-3 text-neutral-300">
-            {review.text}
-          </p>
+          <div className="mt-8 rounded-[32px] border border-black/5 bg-white p-8 shadow-sm">
+            <h2 className="text-xl font-bold">Занятые даты</h2>
 
-          <div className="mt-4 text-sm text-neutral-500">
-            {new Date(
-              review.created_at
-            ).toLocaleDateString()}
+            <div className="mt-4 space-y-3">
+              {bookings.length === 0 ? (
+                <div className="text-[#6B6B6B]">Пока свободно</div>
+              ) : (
+                bookings.map((booking) => (
+                  <div
+                    key={booking.id}
+                    className="rounded-xl bg-[#F7F7F5] p-4 text-sm"
+                  >
+                    📅 {new Date(booking.start_date).toLocaleDateString()} →{" "}
+                    {new Date(booking.end_date).toLocaleDateString()}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
-      ))
-    )}
-
-  </div>
-</div>
-        {/* DESCRIPTION */}
-        <div className="mt-6 rounded-2xl bg-white/5 p-6">
-          <p className="text-neutral-300">
-            {item.description}
-          </p>
-        </div>
-
-        {/* CHAT */}
-        <a
-          href={`/chat/${item.id}?owner=${item.owner_id}`}
-          className="mt-8 block w-full rounded-2xl bg-white/10 py-4 text-center font-bold"
-        >
-          Написать владельцу
-        </a>
-
       </div>
     </main>
   );

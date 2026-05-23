@@ -73,9 +73,9 @@ export default function Navbar() {
   }
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-50">
+    <header className="absolute left-0 right-0 top-0 z-50 px-6 py-4">
 
-      <div className="mx-auto mt-5 flex max-w-7xl items-center justify-between rounded-full border border-white/10 bg-black/40 px-6 py-4 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl items-center justify-between rounded-full bg-white/85 px-6 py-3 shadow-sm backdrop-blur-xl">
 
         {/* LOGO */}
         <Link
@@ -90,21 +90,21 @@ export default function Navbar() {
 
           <Link
             href="/"
-            className="text-sm text-white/70 transition hover:text-white"
+            className="text-sm font-medium text-[#111111]/70 transition hover:text-[#111111]"
           >
             Каталог
           </Link>
 
           <Link
             href="/favorites"
-            className="text-sm text-white/70 transition hover:text-white"
+            className="text-sm font-medium text-[#111111]/70 transition hover:text-[#111111]"
           >
             Избранное
           </Link>
 
           <Link
             href="/add"
-            className="rounded-full bg-[#B44AC0] px-5 py-3 text-sm font-bold text-white transition hover:scale-[1.03]"
+            className="rounded-full bg-[#7BC47F] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#69B56E]"
           >
             Сдать вещь
           </Link>
@@ -142,16 +142,15 @@ export default function Navbar() {
 
           {/* USER */}
           {user ? (
-            <div className="relative">
+            <div className="relative group">
 
               <button
-                onClick={() =>
-                  setMenuOpen(!menuOpen)
-                }
-                className="flex items-center gap-3 rounded-full bg-white px-2 py-2 pr-5 text-black transition hover:scale-[1.02]"
-              >
+  onClick={() => setMenuOpen(!menuOpen)}
+  className="flex items-center gap-3 rounded-full bg-white px-2 py-2 pr-5 text-black transition hover:scale-[1.02]"
+>
+              
 
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#B44AC0] text-sm font-bold text-white">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#7BC47F] text-sm font-bold text-white">
                   {user.email?.[0]
                     ?.toUpperCase()}
                 </div>
@@ -163,57 +162,65 @@ export default function Navbar() {
               </button>
 
               {/* DROPDOWN */}
-              {menuOpen && (
-                <div className="absolute right-0 mt-3 w-64 overflow-hidden rounded-3xl border border-white/10 bg-[#111111] shadow-2xl">
+             <div
+  className={`
+    absolute right-0 top-full z-50 mt-3
+    transition-all duration-200
 
-                  <div className="border-b border-white/5 p-5">
+    ${menuOpen ? "visible opacity-100" : "invisible opacity-0"}
 
-                    <div className="text-sm text-white/40">
-                      Вы вошли как
-                    </div>
+    lg:invisible lg:opacity-0
+    lg:group-hover:visible lg:group-hover:opacity-100
+  `}
+>
+  <div className="w-72 overflow-hidden rounded-[28px] border border-black/10 bg-white p-2 shadow-2xl">
+    <div className="rounded-3xl bg-[#F7F7F5] p-5">
+      <div className="text-xs font-medium text-[#6B6B6B]">
+        Вы вошли как
+      </div>
 
-                    <div className="mt-1 font-bold">
-                      {user.email}
-                    </div>
+      <div className="mt-1 truncate text-sm font-bold text-[#111111]">
+        {user.email}
+      </div>
+    </div>
 
-                  </div>
+    <div className="mt-2 space-y-1">
+      <Link
+        href="/profile"
+        onClick={() => setMenuOpen(false)}
+        className="block rounded-2xl px-4 py-3 text-sm font-medium text-[#111111] transition hover:bg-[#F7F7F5]"
+      >
+        Профиль
+      </Link>
 
-                  <div className="p-2">
+      <Link
+        href="/favorites"
+        onClick={() => setMenuOpen(false)}
+        className="block rounded-2xl px-4 py-3 text-sm font-medium text-[#111111] transition hover:bg-[#F7F7F5]"
+      >
+        Избранное
+      </Link>
 
-                    <Link
-                      href="/profile"
-                      className="block rounded-2xl px-4 py-3 text-sm transition hover:bg-white/5"
-                    >
-                      Профиль
-                    </Link>
+      <Link
+        href="/add"
+        onClick={() => setMenuOpen(false)}
+        className="block rounded-2xl px-4 py-3 text-sm font-medium text-[#111111] transition hover:bg-[#F7F7F5]"
+      >
+        Добавить объявление
+      </Link>
 
-                    <Link
-                      href="/favorites"
-                      className="block rounded-2xl px-4 py-3 text-sm transition hover:bg-white/5"
-                    >
-                      Избранное
-                    </Link>
+      <button
+        onClick={logout}
+        className="mt-2 w-full rounded-full bg-[#7BC47F] px-4 py-3 text-sm font-bold text-[#111111] transition hover:bg-[#69B56E]"
+      >
+        Выйти
+      </button>
+    </div>
+  </div>
+  </div>
+</div>
 
-                    <Link
-                      href="/add"
-                      className="block rounded-2xl px-4 py-3 text-sm transition hover:bg-white/5"
-                    >
-                      Добавить объявление
-                    </Link>
-
-                    <button
-                      onClick={logout}
-                      className="mt-2 w-full rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black transition hover:scale-[1.02]"
-                    >
-                      Выход
-                    </button>
-
-                  </div>
-
-                </div>
-              )}
-
-            </div>
+            
           ) : (
             <div className="flex items-center gap-3">
 
