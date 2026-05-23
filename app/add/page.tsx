@@ -125,7 +125,6 @@ async function handleSubmit(e: any) {
       price,
       location,
       category,
-      image,
       image: images[0] || image,
 images,
 
