@@ -9,7 +9,7 @@ export default function AddItemPage() {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [location, setLocation] = useState("");
-  const [image, setImage] = useState<File | null>(null);
+  const [image, setImage] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [emoji, setEmoji] = useState("📦");
   const [file, setFile] = useState<any>(null);
@@ -126,6 +126,8 @@ async function handleSubmit(e: any) {
       location,
       category,
       image,
+      image: images[0] || image,
+images,
 
       latitude: coords.latitude,
       longitude: coords.longitude,
