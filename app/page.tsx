@@ -16,6 +16,7 @@ export default function HomePage() {
   38.9753,
 ]);
   const [category, setCategory] = useState("");
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [dateModalOpen, setDateModalOpen] = useState(false);
 const [startDate, setStartDate] = useState("");
 const [endDate, setEndDate] = useState("");
@@ -25,6 +26,7 @@ const [endDate, setEndDate] = useState("");
   useEffect(() => {
     loadItems(city, search, category);
     loadLatestReviews();
+    loadFavorites();
   }, [city, search, category]);
 useEffect(() => {
   navigator.geolocation.getCurrentPosition(
@@ -166,11 +168,55 @@ async function selectMapLocation() {
     setLocationModalOpen(false);
   }
 }
+async function loadFavorites() {
+  const { data: auth } = await supabase.auth.getUser();
+  const user = auth.user;
+
+  if (!user) return;
+
+  const { data } = await supabase
+    .from("favorites")
+    .select("item_id")
+    .eq("user_id", user.id);
+
+  setFavoriteIds((data || []).map((f) => f.item_id));
+}
+
+async function toggleFavorite(itemId: string) {
+  const { data: auth } = await supabase.auth.getUser();
+  const user = auth.user;
+
+  if (!user) {
+    alert("Войдите в аккаунт");
+    return;
+  }
+
+  const isFav = favoriteIds.includes(itemId);
+
+  if (isFav) {
+    await supabase
+      .from("favorites")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("item_id", itemId);
+
+    setFavoriteIds((prev) => prev.filter((id) => id !== itemId));
+  } else {
+    await supabase.from("favorites").insert([
+      {
+        user_id: user.id,
+        item_id: itemId,
+      },
+    ]);
+
+    setFavoriteIds((prev) => [...prev, itemId]);
+  }
+}
   return (
     <main className="min-h-screen bg-[#F7F7F5] text-[#111111]">
      {/* HERO */}
 <section className="relative overflow-hidden">
-  <div className="grid min-h-[620px] lg:grid-cols-[1fr_420px]">
+  <div className="grid min-h-[760px] lg:min-h-[620px] lg:grid-cols-[1fr_420px]">
     <div className="relative overflow-hidden">
       <img
         src="/hero.jpg"
@@ -180,35 +226,64 @@ async function selectMapLocation() {
 
       <div className="absolute inset-0 bg-white/10" />
 
-      <div className="relative z-10 flex h-full flex-col justify-center px-8 pb-24 pt-36 lg:px-20">
+      <div className="relative z-10 flex h-full flex-col justify-center px-6 pb-24 pt-28 lg:px-20 lg:pt-36">
         <div className="max-w-4xl">
-          <h1 className="text-5xl font-black leading-[0.95] text-[#111111] md:text-7xl">
+          <h1 className="text-[56px] font-black leading-[0.9] tracking-tight text-[#111111] sm:text-6xl md:text-7xl">
             Не покупай —
             <br />
             бери в аренду
           </h1>
 
-          <p className="mt-6 text-xl text-[#111111]/80">
+          <p className="mt-5 max-w-[320px] text-lg leading-relaxed text-[#111111]/75 lg:max-w-none lg:text-xl">
             Бери вещи рядом и в удобное время
           </p>
         </div>
 
-        <div className="mt-8 max-w-4xl rounded-full bg-white p-3 shadow-2xl">
-          <div className="flex flex-col gap-3 md:flex-row">
+        <div className="mt-8 w-full max-w-4xl rounded-[32px] bg-white p-3 shadow-xl lg:rounded-full lg:p-3">
+          <div className="flex items-center gap-2">
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Что вы хотите взять в аренду?"
-              className="flex-1 rounded-full bg-transparent px-6 py-4 text-lg text-[#111111] outline-none"
+              className="min-w-0 flex-1 bg-transparent px-5 py-4 text-base text-[#111111] outline-none placeholder:text-[#8D8D8D] lg:text-lg"
             />
 
-            <button className="rounded-full bg-[#7BC47F] px-10 py-4 font-bold text-[#111111] transition hover:bg-[#69B56E]">
-              Найти
-            </button>
+            <button className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#7BC47F] font-bold text-[#111111] transition hover:bg-[#69B56E] lg:h-auto lg:w-auto lg:px-10 lg:py-4">
+  <span className="lg:hidden">🔍</span>
+  <span className="hidden lg:inline">Найти</span>
+</button>
           </div>
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center gap-8 text-sm font-medium text-[#111111]">
+        <div className="mt-5 flex flex-wrap items-center gap-4 text-sm font-bold text-[#111111] lg:gap-8">
+        {/* MOBILE CATEGORIES */}
+<div className="mt-8 -mx-6 overflow-x-auto px-6 lg:hidden">
+  <div className="flex gap-3 pb-2">
+    {CATEGORIES.slice(0, 8).map((cat, index) => {
+      const icons = ["📷", "🔨", "🚲", "🎮", "🏕", "🎧", "⚽", "🧰"];
+
+      return (
+        <button
+          key={cat}
+          onClick={() => setCategory(cat)}
+          className={`flex min-w-[128px] flex-col items-start rounded-[28px] p-4 text-left shadow-sm transition ${
+            category === cat
+              ? "bg-[#7BC47F] text-[#111111]"
+              : "bg-white/95 text-[#111111]"
+          }`}
+        >
+          <span className="text-2xl">
+            {icons[index % icons.length]}
+          </span>
+
+          <span className="mt-3 line-clamp-1 text-sm font-black">
+            {cat}
+          </span>
+        </button>
+      );
+    })}
+  </div>
+</div>
           <button
   type="button"
   onClick={() => setLocationModalOpen(true)}
@@ -272,16 +347,16 @@ async function selectMapLocation() {
   </div>
 </section>
       {/* RECENTLY ACTIVE */}
-      <section className="mx-auto max-w-7xl px-6 py-20">
+      <section className="mx-auto max-w-7xl px-6 py-12 lg:py-20">
         <div className="mb-10 flex items-end justify-between">
           <div>
-            <h2 className="text-3xl font-black">
+            <h2 className="text-2xl font-black lg:text-3xl">
               Недавно арендованные товары
             </h2>
           </div>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
           {items.slice(0, 6).map((item) => (
             <a
               key={item.id}
@@ -289,18 +364,31 @@ async function selectMapLocation() {
               className="group block"
             >
               <div>
-                <div className="relative overflow-hidden rounded-[28px] bg-white shadow-sm">
+                <div className="relative overflow-hidden rounded-[32px] bg-white shadow-md transition duration-300 group-active:scale-[0.98]">
                   {item.image ? (
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="h-[225px] w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-[225px] items-center justify-center text-5xl">
-                      📦
-                    </div>
-                  )}
+  <>
+    <img
+      src={item.image}
+      alt={item.name}
+      className="h-[210px] w-full object-cover transition duration-500 group-hover:scale-105 lg:h-[225px]"
+    />
+
+    <button
+  type="button"
+  onClick={(e) => {
+    e.preventDefault();
+    toggleFavorite(item.id);
+  }}
+  className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-xl shadow-sm transition hover:scale-105"
+>
+  {favoriteIds.includes(item.id) ? "♥" : "♡"}
+</button>
+  </>
+) : (
+  <div className="flex h-[225px] items-center justify-center text-5xl">
+    📦
+  </div>
+)}
 
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
 
@@ -322,16 +410,16 @@ async function selectMapLocation() {
                         item.owner_avatar ||
                         "https://i.pravatar.cc/100"
                       }
-                      className="h-14 w-14 rounded-full border-4 border-white object-cover"
+                      className="h-12 w-12 rounded-full border-4 border-white object-cover lg:h-14 lg:w-14"
                       alt="Арендодатель"
                     />
                   </div>
                 </div>
 
-                <div className="px-1 pb-2 pt-4">
+                <div className="px-2 pb-2 pt-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <h3 className="text-lg font-bold">
+                      <h3 className="line-clamp-1 text-base font-black lg:text-lg">
                         {item.name}
                       </h3>
 
@@ -341,13 +429,13 @@ async function selectMapLocation() {
                     </div>
 
                     <div className="text-right">
-                      <div className="text-lg font-black">
+                      <div className="text-xl font-black tracking-tight">
                         {item.price}
                       </div>
 
-                      <div className="text-sm text-[#6B6B6B]">
-                        в день
-                      </div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-[#8D8D8D]">
+  в день
+</div>
                     </div>
                   </div>
                 </div>
@@ -358,9 +446,9 @@ async function selectMapLocation() {
       </section>
 
       {/* REVIEWS */}
-      <section className="mx-auto max-w-7xl px-6 pb-24">
+      <section className="mx-auto max-w-7xl px-6 pb-32 lg:pb-24">
         <div className="mb-10">
-          <h2 className="text-3xl font-black">
+          <h2 className="text-2xl font-black lg:text-3xl">
             Свежие отзывы
           </h2>
         </div>
@@ -369,20 +457,14 @@ async function selectMapLocation() {
           {latestReviews.map((review) => {
             const createdDate = new Date(review.created_at);
 
-            const diffMinutes = Math.floor(
-              (Date.now() - createdDate.getTime()) / 1000 / 60
-            );
+            
 
-            let timeAgo = `${diffMinutes} мин назад`;
-
-            if (diffMinutes > 60) {
-              timeAgo = `${Math.floor(diffMinutes / 60)} ч назад`;
-            }
+           const timeAgo = createdDate.toLocaleDateString("ru-RU");
 
             return (
               <div
                 key={review.id}
-                className="flex h-[156px] flex-col justify-between rounded-[32px] bg-white p-6 shadow-sm"
+                className="flex min-h-[156px] flex-col justify-between rounded-[32px] bg-white p-5 shadow-sm lg:p-6"
               >
                 <div className="flex items-start justify-between">
                   <div className="text-sm text-[#8D8D8D]">
@@ -394,7 +476,7 @@ async function selectMapLocation() {
                   </div>
                 </div>
 
-                <p className="line-clamp-2 text-lg leading-relaxed text-[#111111]">
+                <p className="mt-4 line-clamp-3 text-base leading-relaxed text-[#111111] lg:text-lg">
                   {review.text}
                 </p>
 

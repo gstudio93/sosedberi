@@ -3,10 +3,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 import { supabase } from "../lib/supabase";
 
 export default function Navbar() {
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [mounted, setMounted] =
+  useState(false);
+const [notificationsOpen, setNotificationsOpen] = useState(false);
+const unreadNotifications =
+  notifications.filter(
+    (n) => !n.is_read
+  ).length;
   const [user, setUser] = useState<any>(null);
 
   const [unreadCount, setUnreadCount] =
@@ -15,9 +26,10 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] =
     useState(false);
 
-  useEffect(() => {
-    init();
-  }, []);
+ useEffect(() => {
+  setMounted(true);
+  init();
+}, []);
 
   async function init() {
     const { data } =
@@ -28,32 +40,62 @@ export default function Navbar() {
     if (!currentUser) return;
 
     setUser(currentUser);
+    loadNotifications(currentUser.id);
 
     loadUnread(currentUser.id);
-
+   
     const channel = supabase
-      .channel("navbar-notifications")
-
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${currentUser.id}`,
-        },
-        () => {
-          setUnreadCount((prev) => prev + 1);
-        }
-      )
-
-      .subscribe();
+  .channel(
+    `navbar-notifications-${currentUser.id}`
+  )
+  .on(
+    "postgres_changes",
+    {
+      event: "INSERT",
+      schema: "public",
+      table: "notifications",
+      filter: `user_id=eq.${currentUser.id}`,
+    },
+    async () => {
+      await loadNotifications(
+        currentUser.id
+      );
+    }
+  )
+  .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }
+  async function markNotificationsRead() {
+  if (!user) return;
 
+  await supabase
+    .from("notifications")
+    .update({
+      is_read: true,
+    })
+    .eq("user_id", user.id)
+    .eq("is_read", false);
+
+  setNotifications((prev) =>
+    prev.map((n) => ({
+      ...n,
+      is_read: true,
+    }))
+  );
+}
+async function loadNotifications(userId: string) {
+  const { data } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  setNotifications(data || []);
+}
   async function loadUnread(
     userId: string
   ) {
@@ -73,14 +115,14 @@ export default function Navbar() {
   }
 
   return (
-    <header className="absolute left-0 right-0 top-0 z-50 px-6 py-4">
+    <header className="absolute left-0 right-0 top-0 z-50 px-4 py-4 lg:px-6">
 
-      <div className="mx-auto flex max-w-7xl items-center justify-between rounded-full bg-white/85 px-6 py-3 shadow-sm backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl items-center justify-between rounded-full bg-white/90 px-4 py-3 shadow-sm backdrop-blur-xl lg:px-6">
 
         {/* LOGO */}
         <Link
           href="/"
-          className="text-2xl font-black tracking-tight"
+          className="text-xl font-black tracking-tight lg:text-2xl"
         >
           SosedBeri
         </Link>
@@ -112,32 +154,73 @@ export default function Navbar() {
         </div>
 
         {/* RIGHT */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 lg:gap-3">
 
           {/* NOTIFICATIONS */}
           {user && (
-            <Link
-              href="/notifications"
-              className="relative flex h-12 w-12 items-center justify-center rounded-full bg-white/5 text-lg transition hover:bg-white/10"
-            >
-              🔔
+            <div className="relative">
+  <button
+    onClick={() => {
+  setNotificationsOpen(
+    !notificationsOpen
+  );
 
-              {unreadCount > 0 && (
-                <div className="absolute right-0 top-0 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-xs font-bold text-white">
-                  {unreadCount}
-                </div>
-              )}
-            </Link>
+  if (!notificationsOpen) {
+    markNotificationsRead();
+  }
+}}
+    className="relative hidden rounded-full bg-white px-5 py-3 text-sm font-bold text-[#111111] transition hover:bg-[#F7F7F5] lg:block"
+  >
+    🔔
+
+    {unreadNotifications > 0 && (
+      <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#7BC47F] px-1 text-xs text-white">
+        {unreadNotifications}
+      </span>
+    )}
+  </button>
+
+  {notificationsOpen && (
+    <div className="absolute right-0 top-full z-50 mt-3 w-80 overflow-hidden rounded-[28px] border border-black/10 bg-white p-2 shadow-2xl">
+      {notifications.length === 0 ? (
+        <div className="p-5 text-sm text-[#6B6B6B]">
+          Пока нет уведомлений
+        </div>
+      ) : (
+        notifications.map((n) => (
+          <a
+            key={n.id}
+            href={n.link || "/profile"}
+            className="block rounded-2xl px-4 py-3 transition hover:bg-[#F7F7F5]"
+          >
+            <div className="text-sm font-bold text-[#111111]">
+              {n.text}
+            </div>
+
+            <div className="mt-1 text-xs text-[#8D8D8D]">
+              {mounted
+  ? new Date(
+      n.created_at
+    ).toLocaleString()
+  : ""}
+            </div>
+          </a>
+        ))
+      )}
+    </div>
+  )}
+</div>
           )}
 
           {/* CHAT */}
           {user && (
-            <Link
-              href="/chats"
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-white/5 text-lg transition hover:bg-white/10"
-            >
-              💬
-            </Link>
+           <a
+  href="/messages"
+  className="relative flex h-11 w-11 items-center justify-center rounded-full bg-white text-xl text-[#111111] transition hover:bg-[#F7F7F5] lg:h-auto lg:w-auto lg:px-5 lg:py-3 lg:text-sm lg:font-bold"
+>
+  <span className="lg:hidden">💬</span>
+  <span className="hidden lg:inline">💬 Сообщения</span>
+</a>
           )}
 
           {/* USER */}
@@ -146,7 +229,7 @@ export default function Navbar() {
 
               <button
   onClick={() => setMenuOpen(!menuOpen)}
-  className="flex items-center gap-3 rounded-full bg-white px-2 py-2 pr-5 text-black transition hover:scale-[1.02]"
+  className="flex items-center gap-2 rounded-full bg-white px-2 py-2 text-black transition hover:scale-[1.02] lg:gap-3 lg:pr-5"
 >
               
 
@@ -155,9 +238,9 @@ export default function Navbar() {
                     ?.toUpperCase()}
                 </div>
 
-                <span className="text-sm font-bold">
-                  Профиль
-                </span>
+                <span className="hidden text-sm font-bold lg:block">
+  Профиль
+</span>
 
               </button>
 
