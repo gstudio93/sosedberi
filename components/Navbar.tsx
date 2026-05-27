@@ -315,7 +315,7 @@ async function loadNotifications(userId: string) {
               </Link>
 
               <Link
-                href="/register"
+  href="/login"
                 className="rounded-full bg-white px-6 py-3 text-sm font-bold text-black transition hover:scale-[1.03]"
               >
                 Регистрация
