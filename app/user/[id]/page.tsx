@@ -119,13 +119,19 @@ setCompletedRentals(completedBookings?.length || 0);
           <div className="rounded-full bg-[#E8F7EA] px-4 py-2 text-sm font-bold text-[#3F9E47]">
             ✔ Email подтвержден
           </div>
+          {profile?.verified && (
+  <div className="rounded-full bg-[#E8F7EA] px-4 py-2 text-sm font-bold text-[#3F9E47]">
+    ✓ Профиль проверен
+  </div>
+)}
 
-          {profile?.phone_verified && (
-            <div className="rounded-full bg-[#E8F7EA] px-4 py-2 text-sm font-bold text-[#3F9E47]">
-              ✔ Телефон подтвержден
-            </div>
-          )}
+{profile?.phone_verified && (
+  <div className="rounded-full bg-[#E8F7EA] px-4 py-2 text-sm font-bold text-[#3F9E47]">
+    📱 Телефон подтверждён
+  </div>
+)}
 
+        
         </div>
 
         <div className="mt-6 flex flex-wrap gap-6 text-sm font-medium text-[#6B6B6B]">
@@ -150,7 +156,7 @@ setCompletedRentals(completedBookings?.length || 0);
   ✅ {completedRentals} успешных аренд
 </div>
 <div>
-  💬 Обычно отвечает быстро
+  💬 {profile?.response_time || "Обычно отвечает быстро"}
 </div>
 <div>
   🛡 Сделки проходят через SosedBeri

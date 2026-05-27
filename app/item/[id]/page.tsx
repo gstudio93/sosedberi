@@ -337,6 +337,25 @@ function getTotalPrice() {
       </div>
 
       <div className="mt-8 grid gap-4 text-lg text-[#111111]">
+        {ownerProfile?.verified && (
+  <div className="flex items-start gap-3 text-base leading-snug lg:text-xl">
+    <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
+      ✓
+    </span>
+
+    <span>Проверенный профиль</span>
+  </div>
+)}
+
+{ownerProfile?.phone_verified && (
+  <div className="flex items-start gap-3 text-base leading-snug lg:text-xl">
+    <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
+      📱
+    </span>
+
+    <span>Телефон подтверждён</span>
+  </div>
+)}
         <div className="flex items-start gap-3 text-base leading-snug lg:text-xl">
           <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
             ✓

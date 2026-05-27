@@ -7,12 +7,17 @@ export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
   const [username, setUsername] =
   useState("");
-
+const [emailVerified, setEmailVerified] =
+  useState(false);
+  const [phoneVerified, setPhoneVerified] =
+  useState(false);
 const [bio, setBio] =
   useState("");
 const [activeTab, setActiveTab] =
   useState<any>("overview");
 const [avatar, setAvatar] =
+  useState("");
+  const [phone, setPhone] =
   useState("");
   const [myItems, setMyItems] = useState<any[]>([]);
   const [myBookings, setMyBookings] = useState<any[]>([]);
@@ -28,6 +33,9 @@ const [avatar, setAvatar] =
 
     const currentUser = data.user;
 
+    const emailVerified =
+  !!user?.email_confirmed_at;
+
     if (!currentUser) return;
 
     setUser(currentUser);
@@ -42,6 +50,8 @@ if (profile) {
   setUsername(profile.username || "");
   setBio(profile.bio || "");
   setAvatar(profile.avatar || "");
+  setPhone(profile.phone || "");
+  setPhoneVerified(!!profile.phone_verified);
 }
 
     // МОИ ОБЪЯВЛЕНИЯ
@@ -154,6 +164,7 @@ if (profile) {
       username,
       bio,
       avatar,
+      phone,
     });
 
   alert("Профиль сохранен");
@@ -226,9 +237,51 @@ function getBookingTotal(booking: any) {
 
   return days * price;
 }
+async function resendConfirmation() {
+  const { data } =
+    await supabase.auth.getUser();
 
+  const user = data.user;
+  setEmailVerified(
+  !!user?.email_confirmed_at
+);
+
+  if (!user?.email) return;
+
+  const { error } =
+    await supabase.auth.resend({
+      type: "signup",
+      email: user.email,
+    });
+
+  if (error) {
+    alert("Ошибка отправки");
+    return;
+  }
+
+  alert(
+    "Письмо отправлено повторно"
+  );
+}
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-6 pb-24 pt-32 text-[#111111]">
+      {!user?.email_confirmed_at && (
+  <div className="mb-8 rounded-[28px] border border-yellow-300 bg-yellow-50 p-6 text-[#111111]">
+    <div className="text-xl font-black">
+      Подтвердите email
+    </div>
+
+    <p className="mt-2 text-sm text-[#6B6B6B]">
+      Мы отправили письмо с подтверждением на вашу почту.
+    </p>
+    <button
+  onClick={resendConfirmation}
+  className="mt-4 rounded-full bg-[#111111] px-5 py-3 text-sm font-bold text-white transition hover:opacity-80"
+>
+  Отправить письмо повторно
+</button>
+  </div>
+)}
       <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[280px_1fr]">
         {/* SIDEBAR */}
 <aside className="h-fit rounded-[32px] border border-black/5 bg-white p-6 shadow-sm lg:sticky lg:top-32">
@@ -324,6 +377,20 @@ function getBookingTotal(booking: any) {
   {activeTab === "bookings" && "Бронирования"}
   {activeTab === "settings" && "Настройки"}
 </h1>
+<div className="mt-4 flex flex-wrap gap-3">
+
+  {emailVerified && (
+    <div className="rounded-full bg-[#E8F7EA] px-4 py-2 text-sm font-bold text-[#3F9E47]">
+      ✉ Email подтверждён
+    </div>
+  )}
+  {phoneVerified && (
+  <div className="rounded-full bg-[#E8F7EA] px-4 py-2 text-sm font-bold text-[#3F9E47]">
+    📱 Телефон подтверждён
+  </div>
+)}
+
+</div>
 
     <p className="mt-3 text-lg text-[#6B6B6B]">
       {activeTab === "overview" && `Добро пожаловать, ${username || "пользователь"}.`}
@@ -433,6 +500,7 @@ function getBookingTotal(booking: any) {
       placeholder="Ссылка на фото"
       className="w-full rounded-2xl bg-[#F7F7F5] p-4 outline-none"
     />
+    
 
     <textarea
       value={bio}
@@ -442,6 +510,20 @@ function getBookingTotal(booking: any) {
       placeholder="О себе"
       className="min-h-[120px] w-full rounded-2xl bg-[#F7F7F5] p-4 outline-none"
     />
+    <div className="mt-6">
+  <label className="mb-2 block text-sm font-bold text-[#6B6B6B]">
+    Телефон
+  </label>
+
+  <input
+    value={phone}
+    onChange={(e) =>
+      setPhone(e.target.value)
+    }
+    placeholder="+7 999 123 45 67"
+    className="w-full rounded-2xl border border-black/10 bg-white p-4 outline-none"
+  />
+</div>
 
     <button
       onClick={saveProfile}
