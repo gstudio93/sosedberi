@@ -27,6 +27,43 @@ export default function ProfilePage() {
     loadProfile();
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+
+    const refresh = () => {
+      loadProfile();
+    };
+
+    const channel = supabase
+      .channel(`profile-rentals-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "bookings",
+        },
+        refresh
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "rental_handover_reports",
+        },
+        refresh
+      )
+      .subscribe();
+
+    window.addEventListener("focus", refresh);
+
+    return () => {
+      window.removeEventListener("focus", refresh);
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   async function loadProfile() {
     const { data } = await supabase.auth.getUser();
     const currentUser = data.user;
