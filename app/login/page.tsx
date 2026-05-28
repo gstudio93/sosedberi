@@ -9,7 +9,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [isRegister, setIsRegister] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [vkLoading, setVkLoading] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -54,26 +53,6 @@ export default function LoginPage() {
     router.push("/");
   }
 
-  async function signInWithVK() {
-    setVkLoading(true);
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "custom:vk",
-      options: {
-        redirectTo: `${window.location.origin}/`,
-      },
-    });
-
-    setVkLoading(false);
-
-    if (error) {
-      alert(
-        "VK ID пока не настроен в Supabase. Нужно создать Custom OAuth Provider с identifier custom:vk."
-      );
-      console.log(error);
-    }
-  }
-
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#F7F7F5] px-6 py-28 text-[#111111]">
       <div className="w-full max-w-md rounded-[36px] bg-white p-8 shadow-sm">
@@ -107,17 +86,15 @@ export default function LoginPage() {
             : "Войдите в аккаунт"}
         </p>
 
-        <button
-          type="button"
-          onClick={signInWithVK}
-          disabled={vkLoading}
-          className="mt-8 flex w-full items-center justify-center gap-3 rounded-full bg-[#0077FF] px-5 py-4 text-sm font-black text-white transition hover:bg-[#006BE6] disabled:opacity-60"
+        <div
+          className="mt-8 flex w-full items-center justify-center gap-3 rounded-full bg-[#EEF4FF] px-5 py-4 text-sm font-black text-[#0077FF]"
+          title="VK ID подключим после отдельной серверной привязки профиля"
         >
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-black text-[#0077FF]">
             VK
           </span>
-          {vkLoading ? "Открываем VK ID..." : "Продолжить через VK ID"}
-        </button>
+          VK ID подключим позже
+        </div>
 
         <div className="my-6 flex items-center gap-3">
           <div className="h-px flex-1 bg-black/10" />
