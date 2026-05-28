@@ -342,6 +342,48 @@ export default function HomePage() {
     loadItems(city, search, category);
   }
 
+  function toDateInputValue(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  }
+
+  function addDays(date: Date, days: number) {
+    const nextDate = new Date(date);
+    nextDate.setDate(nextDate.getDate() + days);
+
+    return nextDate;
+  }
+
+  function selectDateRange(start: Date, end: Date) {
+    setStartDate(toDateInputValue(start));
+    setEndDate(toDateInputValue(end));
+  }
+
+  function selectWeekend() {
+    const today = new Date();
+    const currentDay = today.getDay();
+    const daysUntilSaturday = currentDay === 6 ? 0 : (6 - currentDay + 7) % 7;
+    const saturday = addDays(today, daysUntilSaturday);
+    const sunday = addDays(saturday, 1);
+
+    selectDateRange(saturday, sunday);
+  }
+
+  function formatSelectedRange() {
+    if (!startDate || !endDate) return "Выбор даты";
+
+    return `${new Date(startDate).toLocaleDateString("ru-RU", {
+      day: "numeric",
+      month: "short",
+    })} — ${new Date(endDate).toLocaleDateString("ru-RU", {
+      day: "numeric",
+      month: "short",
+    })}`;
+  }
+
   function getOwnerInitial(item: Item) {
     return (
       item.owner_profile?.full_name ||
@@ -426,9 +468,7 @@ export default function HomePage() {
                   className="rounded-full bg-white/85 px-4 py-2 shadow-sm transition hover:bg-white"
                 >
                   ▣{" "}
-                  {startDate && endDate
-                    ? `${startDate} — ${endDate}`
-                    : "Выбор даты"}
+                  {formatSelectedRange()}
                 </button>
               </div>
 
@@ -711,17 +751,89 @@ export default function HomePage() {
 
       {dateModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
-          <div className="relative w-full max-w-xl rounded-[32px] bg-white p-6 text-[#111111] shadow-2xl">
+          <div className="relative w-full max-w-2xl rounded-[32px] bg-white p-5 text-[#111111] shadow-2xl sm:p-7">
             <button
               onClick={() => setDateModalOpen(false)}
-              className="absolute right-6 top-5 text-3xl"
+              className="absolute right-6 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-[#F3F3F0] text-2xl font-black transition hover:bg-[#E8E8E2]"
             >
               ×
             </button>
-            <h2 className="text-center text-3xl font-black">
-              Когда хотите арендовать?
-            </h2>
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
+            <div className="pr-12">
+              <p className="text-sm font-bold uppercase text-[#7BC47F]">
+                Период аренды
+              </p>
+              <h2 className="mt-2 text-3xl font-black">
+                Когда нужна вещь?
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-[#6B6B6B]">
+                Выберите быстрый вариант или задайте даты вручную.
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <DatePreset
+                title="Сегодня"
+                subtitle={new Date().toLocaleDateString("ru-RU", {
+                  day: "numeric",
+                  month: "short",
+                })}
+                onClick={() => {
+                  const today = new Date();
+                  selectDateRange(today, today);
+                }}
+              />
+              <DatePreset
+                title="Завтра"
+                subtitle={addDays(new Date(), 1).toLocaleDateString("ru-RU", {
+                  day: "numeric",
+                  month: "short",
+                })}
+                onClick={() => {
+                  const tomorrow = addDays(new Date(), 1);
+                  selectDateRange(tomorrow, tomorrow);
+                }}
+              />
+              <DatePreset
+                title="Выходные"
+                subtitle="сб - вс"
+                onClick={selectWeekend}
+              />
+              <DatePreset
+                title="На 3 дня"
+                subtitle="удобно для поездки"
+                onClick={() => {
+                  const today = new Date();
+                  selectDateRange(today, addDays(today, 2));
+                }}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const today = new Date();
+                selectDateRange(today, addDays(today, 6));
+              }}
+              className="mt-3 w-full rounded-[22px] border border-[#BDE8C0] bg-[#F1FAF2] px-5 py-4 text-left transition hover:border-[#7BC47F]"
+            >
+              <span className="block text-base font-black">На неделю</span>
+              <span className="mt-1 block text-sm text-[#6B6B6B]">
+                Хорошо для ремонта, отдыха или теста техники
+              </span>
+            </button>
+
+            {startDate && endDate && (
+              <div className="mt-5 rounded-[22px] bg-[#F7F7F5] px-5 py-4">
+                <div className="text-xs font-bold uppercase text-[#8D8D8D]">
+                  Выбранный период
+                </div>
+                <div className="mt-1 text-xl font-black">
+                  {formatSelectedRange()}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
               <div>
                 <label className="text-sm font-bold text-[#6B6B6B]">
                   Дата начала
@@ -730,7 +842,7 @@ export default function HomePage() {
                   type="date"
                   value={startDate}
                   onChange={(event) => setStartDate(event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[#F7F7F5] p-4 outline-none"
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[#F7F7F5] p-4 outline-none transition focus:border-[#7BC47F]"
                 />
               </div>
               <div>
@@ -741,23 +853,23 @@ export default function HomePage() {
                   type="date"
                   value={endDate}
                   onChange={(event) => setEndDate(event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[#F7F7F5] p-4 outline-none"
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[#F7F7F5] p-4 outline-none transition focus:border-[#7BC47F]"
                 />
               </div>
             </div>
-            <div className="mt-8 flex gap-3">
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <button
                 onClick={() => {
                   setStartDate("");
                   setEndDate("");
                 }}
-                className="flex-1 rounded-full border border-black/10 px-6 py-4 font-black"
+                className="flex-1 rounded-full border border-black/10 px-6 py-4 font-black transition hover:bg-[#F7F7F5]"
               >
                 Сбросить
               </button>
               <button
                 onClick={() => setDateModalOpen(false)}
-                className="flex-1 rounded-full bg-[#7BC47F] px-6 py-4 font-black"
+                className="flex-1 rounded-full bg-[#7BC47F] px-6 py-4 font-black transition hover:bg-[#69B56E]"
               >
                 Применить
               </button>
@@ -766,5 +878,28 @@ export default function HomePage() {
         </div>
       )}
     </main>
+  );
+}
+
+function DatePreset({
+  title,
+  subtitle,
+  onClick,
+}: {
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-[22px] border border-black/10 bg-white px-4 py-4 text-left transition hover:-translate-y-0.5 hover:border-[#7BC47F] hover:shadow-sm"
+    >
+      <span className="block text-base font-black">{title}</span>
+      <span className="mt-1 block text-xs font-bold text-[#8D8D8D]">
+        {subtitle}
+      </span>
+    </button>
   );
 }
