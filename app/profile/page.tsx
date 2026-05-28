@@ -20,6 +20,7 @@ export default function ProfilePage() {
   const [incomingBookings, setIncomingBookings] = useState<any[]>([]);
   const [bookingProfiles, setBookingProfiles] = useState<Record<string, any>>({});
   const [handoverReports, setHandoverReports] = useState<any[]>([]);
+  const [bookingReviews, setBookingReviews] = useState<any[]>([]);
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -112,7 +113,7 @@ export default function ProfilePage() {
 
     if (ownedItems.length === 0) {
       setIncomingBookings([]);
-      await Promise.all([loadBookingProfiles(renterBookings), loadHandoverReports(renterBookings)]);
+      await Promise.all([loadBookingProfiles(renterBookings), loadHandoverReports(renterBookings), loadBookingReviews(renterBookings)]);
       return;
     }
 
@@ -131,7 +132,28 @@ export default function ProfilePage() {
     const ownerBookings = incoming || [];
     setIncomingBookings(ownerBookings);
     const allBookings = [...renterBookings, ...ownerBookings];
-    await Promise.all([loadBookingProfiles(allBookings), loadHandoverReports(allBookings)]);
+    await Promise.all([loadBookingProfiles(allBookings), loadHandoverReports(allBookings), loadBookingReviews(allBookings)]);
+  }
+
+  async function loadBookingReviews(bookings: any[]) {
+    const bookingIds = Array.from(new Set(bookings.map((booking) => booking.id).filter(Boolean)));
+
+    if (bookingIds.length === 0) {
+      setBookingReviews([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("reviews")
+      .select("*")
+      .in("booking_id", bookingIds);
+
+    if (error) {
+      console.log("BOOKING REVIEWS ERROR:", error);
+      return;
+    }
+
+    setBookingReviews(data || []);
   }
 
   async function loadHandoverReports(bookings: any[]) {
@@ -480,6 +502,45 @@ export default function ProfilePage() {
     patchBookingState(booking.id, { status: "dispute" });
   }
 
+  function addLocalReview(review: any) {
+    setBookingReviews((prev) => {
+      const exists = prev.some((item) => item.id === review.id);
+      return exists ? prev : [review, ...prev];
+    });
+  }
+
+  async function createBookingReview(
+    booking: any,
+    reviewType: "item" | "renter",
+    rating: number,
+    text: string
+  ) {
+    if (!user) return;
+
+    const targetUserId = reviewType === "renter" ? booking.renter_id : booking.items?.owner_id;
+    const { data, error } = await supabase
+      .from("reviews")
+      .insert({
+        item_id: booking.item_id,
+        owner_id: booking.items?.owner_id,
+        author_id: user.id,
+        target_user_id: targetUserId,
+        booking_id: booking.id,
+        review_type: reviewType,
+        rating,
+        text: text.trim(),
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    addLocalReview(data);
+  }
+
   async function resendConfirmation() {
     const { data } = await supabase.auth.getUser();
     const currentUser = data.user;
@@ -690,6 +751,8 @@ export default function ProfilePage() {
                         createRentalReport={createRentalReport}
                         confirmRentalReport={confirmRentalReport}
                         openRentalDispute={openRentalDispute}
+                        renterReview={getBookingReview(bookingReviews, booking.id, "renter")}
+                        createBookingReview={createBookingReview}
                       />
                     ))}
                   </div>
@@ -757,6 +820,8 @@ export default function ProfilePage() {
                         createRentalReport={createRentalReport}
                         confirmRentalReport={confirmRentalReport}
                         openRentalDispute={openRentalDispute}
+                        itemReview={getBookingReview(bookingReviews, booking.id, "item")}
+                        createBookingReview={createBookingReview}
                       />
                     ))}
                   </div>
@@ -782,6 +847,8 @@ export default function ProfilePage() {
                         createRentalReport={createRentalReport}
                         confirmRentalReport={confirmRentalReport}
                         openRentalDispute={openRentalDispute}
+                        renterReview={getBookingReview(bookingReviews, booking.id, "renter")}
+                        createBookingReview={createBookingReview}
                       />
                     ))}
                   </div>
@@ -1011,6 +1078,8 @@ function IncomingBookingRow({
   createRentalReport,
   confirmRentalReport,
   openRentalDispute,
+  renterReview,
+  createBookingReview,
 }: {
   booking: any;
   renterProfile?: any;
@@ -1023,6 +1092,8 @@ function IncomingBookingRow({
   createRentalReport: (booking: any, reportType: "handover" | "return", files: File[], comment: string) => void;
   confirmRentalReport: (booking: any, report: any) => void;
   openRentalDispute: (booking: any, report: any, files: File[], reason: string) => void;
+  renterReview?: any;
+  createBookingReview: (booking: any, reviewType: "item" | "renter", rating: number, text: string) => void;
 }) {
   const renterName = renterProfile?.full_name || renterProfile?.username || "Арендатор";
   const renterInitial = renterName[0]?.toUpperCase() || "А";
@@ -1117,6 +1188,17 @@ function IncomingBookingRow({
           onDispute={(files, reason) => openRentalDispute(booking, returnReport, files, reason)}
         />
       )}
+      {booking.status === "completed" && (
+        renterReview ? (
+          <ReviewSummary label="Арендатор оценен" review={renterReview} />
+        ) : (
+          <ReviewForm
+            title="Оценить арендатора"
+            placeholder="Аккуратность, своевременный возврат, коммуникация"
+            onSubmit={(rating, text) => createBookingReview(booking, "renter", rating, text)}
+          />
+        )
+      )}
       </div>
     </div>
   );
@@ -1135,6 +1217,8 @@ function MyBookingRow({
   createRentalReport,
   confirmRentalReport,
   openRentalDispute,
+  itemReview,
+  createBookingReview,
 }: {
   booking: any;
   ownerProfile?: any;
@@ -1148,6 +1232,8 @@ function MyBookingRow({
   createRentalReport: (booking: any, reportType: "handover" | "return", files: File[], comment: string) => void;
   confirmRentalReport: (booking: any, report: any) => void;
   openRentalDispute: (booking: any, report: any, files: File[], reason: string) => void;
+  itemReview?: any;
+  createBookingReview: (booking: any, reviewType: "item" | "renter", rating: number, text: string) => void;
 }) {
   const ownerName = ownerProfile?.full_name || ownerProfile?.username || "Владелец";
   const statusText = getBookingStatusText(booking.status, booking.payment_status);
@@ -1225,12 +1311,15 @@ function MyBookingRow({
         />
       )}
       {booking.status === "completed" && (
-        <Link
-          href={`/item/${booking.item_id}`}
-          className="rounded-full bg-[#111111] px-4 py-2.5 text-center text-sm font-bold text-white"
-        >
-          Оставить отзыв
-        </Link>
+        itemReview ? (
+          <ReviewSummary label="Отзыв о вещи оставлен" review={itemReview} />
+        ) : (
+          <ReviewForm
+            title="Оставить отзыв о вещи"
+            placeholder="Состояние вещи, соответствие описанию, удобство аренды"
+            onSubmit={(rating, text) => createBookingReview(booking, "item", rating, text)}
+          />
+        )
       )}
       </div>
     </div>
@@ -1253,6 +1342,73 @@ function getBookingStatusText(status: string, paymentStatus?: string) {
 
 function getRentalReport(reports: any[], bookingId: string, type: "handover" | "return") {
   return reports.find((report) => report.booking_id === bookingId && report.type === type);
+}
+
+function getBookingReview(reviews: any[], bookingId: string, reviewType: "item" | "renter") {
+  return reviews.find((review) => review.booking_id === bookingId && review.review_type === reviewType);
+}
+
+function ReviewForm({
+  title,
+  placeholder,
+  onSubmit,
+}: {
+  title: string;
+  placeholder: string;
+  onSubmit: (rating: number, text: string) => void;
+}) {
+  const [rating, setRating] = useState(5);
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submit() {
+    setSaving(true);
+    await onSubmit(rating, text);
+    setSaving(false);
+    setText("");
+    setRating(5);
+  }
+
+  return (
+    <div className="rounded-2xl border border-black/5 bg-white p-3">
+      <div className="text-sm font-extrabold">{title}</div>
+      <select
+        value={rating}
+        onChange={(event) => setRating(Number(event.target.value))}
+        className="mt-2 w-full rounded-2xl bg-[#F7F7F5] p-3 text-sm outline-none"
+      >
+        <option value={5}>★★★★★</option>
+        <option value={4}>★★★★</option>
+        <option value={3}>★★★</option>
+        <option value={2}>★★</option>
+        <option value={1}>★</option>
+      </select>
+      <textarea
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        placeholder={placeholder}
+        className="mt-2 min-h-20 w-full rounded-2xl bg-[#F7F7F5] p-3 text-xs outline-none"
+      />
+      <button
+        type="button"
+        onClick={submit}
+        disabled={saving}
+        className="mt-2 w-full rounded-full bg-[#111111] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+      >
+        {saving ? "Сохраняем..." : "Оставить отзыв"}
+      </button>
+    </div>
+  );
+}
+
+function ReviewSummary({ label, review }: { label: string; review: any }) {
+  return (
+    <div className="rounded-2xl bg-[#F7F7F5] p-3 text-xs">
+      <div className="font-bold">{label}</div>
+      <div className="mt-1 text-[#FFB800]">{"★".repeat(review.rating)}</div>
+      {review.text && <div className="mt-2 text-[#555555]">{review.text}</div>}
+    </div>
+  );
 }
 
 function ReportForm({

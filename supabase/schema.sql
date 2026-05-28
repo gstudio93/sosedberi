@@ -111,7 +111,9 @@ create table if not exists public.reviews (
   item_id uuid references public.items(id) on delete cascade,
   owner_id uuid references auth.users(id) on delete cascade,
   author_id uuid not null references auth.users(id) on delete cascade,
+  target_user_id uuid references auth.users(id) on delete cascade,
   booking_id uuid references public.bookings(id) on delete set null,
+  review_type text not null default 'item' check (review_type in ('item', 'renter')),
   rating integer not null check (rating between 1 and 5),
   text text,
   created_at timestamptz not null default now()
@@ -235,7 +237,9 @@ alter table public.rental_handover_reports add column if not exists confirmed_at
 alter table public.reviews add column if not exists item_id uuid references public.items(id) on delete cascade;
 alter table public.reviews add column if not exists owner_id uuid references auth.users(id) on delete cascade;
 alter table public.reviews add column if not exists author_id uuid references auth.users(id) on delete cascade;
+alter table public.reviews add column if not exists target_user_id uuid references auth.users(id) on delete cascade;
 alter table public.reviews add column if not exists booking_id uuid references public.bookings(id) on delete set null;
+alter table public.reviews add column if not exists review_type text not null default 'item';
 alter table public.reviews add column if not exists rating integer;
 alter table public.reviews add column if not exists text text;
 alter table public.reviews add column if not exists created_at timestamptz not null default now();
@@ -259,6 +263,8 @@ create index if not exists messages_receiver_id_is_read_idx on public.messages(r
 create index if not exists bookings_item_id_dates_idx on public.bookings(item_id, start_date, end_date);
 create index if not exists bookings_renter_id_idx on public.bookings(renter_id);
 create index if not exists rental_handover_reports_booking_id_idx on public.rental_handover_reports(booking_id);
+create index if not exists reviews_target_user_id_idx on public.reviews(target_user_id);
+create index if not exists reviews_booking_id_review_type_idx on public.reviews(booking_id, review_type);
 create index if not exists notifications_user_id_created_at_idx on public.notifications(user_id, created_at desc);
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

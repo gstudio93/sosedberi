@@ -16,6 +16,7 @@ export default function UserPage() {
   const [profile, setProfile] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [renterReviews, setRenterReviews] = useState<any[]>([]);
   const [completedRentals, setCompletedRentals] = useState(0);
 
   useEffect(() => {
@@ -56,9 +57,28 @@ export default function UserPage() {
       `
       )
       .eq("owner_id", id)
+      .eq("review_type", "item")
       .order("created_at", { ascending: false });
 
     setReviews(reviewsData || []);
+
+    const { data: renterReviewsData } = await supabase
+      .from("reviews")
+      .select(
+        `
+        *,
+        profiles:author_id (
+          username,
+          full_name,
+          avatar
+        )
+      `
+      )
+      .eq("target_user_id", id)
+      .eq("review_type", "renter")
+      .order("created_at", { ascending: false });
+
+    setRenterReviews(renterReviewsData || []);
 
     if (ownerItems.length > 0) {
       const { data: completedBookings } = await supabase
@@ -82,6 +102,10 @@ export default function UserPage() {
     if (reviews.length === 0) return 0;
     return reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length;
   }, [reviews]);
+  const renterRating = useMemo(() => {
+    if (renterReviews.length === 0) return 0;
+    return renterReviews.reduce((sum, review) => sum + review.rating, 0) / renterReviews.length;
+  }, [renterReviews]);
 
   const displayName =
     profile?.full_name?.trim() ||
@@ -132,6 +156,9 @@ export default function UserPage() {
                 <div className="mt-3 flex flex-wrap gap-2 text-sm">
                   <Pill>{avgRating.toFixed(1)} рейтинг</Pill>
                   <Pill>{reviews.length} отзывов</Pill>
+                  <Pill tone="green">
+                    {renterRating.toFixed(1)} рейтинг арендатора
+                  </Pill>
                   {profile?.phone_verified && (
                     <Pill tone="green">Телефон подтвержден</Pill>
                   )}
@@ -182,7 +209,7 @@ export default function UserPage() {
             <Metric label="Объявления" value={items.length} />
             <Metric label="Отзывы" value={reviews.length} />
             <Metric label="Рейтинг" value={avgRating.toFixed(1)} />
-            <Metric label="Аренд завершено" value={completedRentals} />
+            <Metric label="Рейтинг арендатора" value={renterRating.toFixed(1)} />
           </div>
         </section>
 
@@ -256,58 +283,61 @@ export default function UserPage() {
               <div>
                 <h2 className="text-2xl font-extrabold">Отзывы</h2>
                 <p className="mt-1 text-sm text-[#6B6B6B]">
-                  Опыт аренды у этого владельца.
+                  Отзывы о вещах владельца и оценка пользователя как арендатора.
                 </p>
               </div>
               <Pill>{avgRating.toFixed(1)} из 5</Pill>
             </div>
 
-            {reviews.length === 0 ? (
-              <EmptyState text="Пока нет отзывов." />
-            ) : (
-              <div className="grid gap-4 lg:grid-cols-2">
-                {reviews.map((review) => {
-                  const authorName =
-                    review.profiles?.full_name ||
-                    review.profiles?.username ||
-                    "Пользователь";
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div>
+                <h3 className="mb-3 text-lg font-extrabold">О вещах владельца</h3>
+                {reviews.length === 0 ? (
+                  <EmptyState text="Пока нет отзывов о вещах." />
+                ) : (
+                  <div className="grid gap-4">
+                    {reviews.map((review) => {
+                      const authorName =
+                        review.profiles?.full_name ||
+                        review.profiles?.username ||
+                        "Пользователь";
 
-                  return (
-                    <article
-                      key={review.id}
-                      className="rounded-[22px] border border-black/5 bg-[#F7F7F5] p-5"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-sm font-extrabold text-white">
-                          {review.profiles?.avatar ? (
-                            <img
-                              src={review.profiles.avatar}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            authorName[0]?.toUpperCase()
-                          )}
-                        </div>
-                        <div>
-                          <div className="font-extrabold">{authorName}</div>
-                          <div className="text-xs text-[#8D8D8D]">
-                            {new Date(review.created_at).toLocaleDateString("ru-RU")}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 text-sm font-bold text-[#FFB800]">
-                        {"★".repeat(review.rating)}
-                      </div>
-                      <p className="mt-3 leading-relaxed text-[#555555]">
-                        {review.text || "Без текста"}
-                      </p>
-                    </article>
-                  );
-                })}
+                      return (
+                        <ReviewArticle
+                          key={review.id}
+                          review={review}
+                          authorName={authorName}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
+
+              <div>
+                <h3 className="mb-3 text-lg font-extrabold">Как арендатор</h3>
+                {renterReviews.length === 0 ? (
+                  <EmptyState text="Пока нет оценок от арендодателей." />
+                ) : (
+                  <div className="grid gap-4">
+                    {renterReviews.map((review) => {
+                      const authorName =
+                        review.profiles?.full_name ||
+                        review.profiles?.username ||
+                        "Арендодатель";
+
+                      return (
+                        <ReviewArticle
+                          key={review.id}
+                          review={review}
+                          authorName={authorName}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </section>
         )}
 
@@ -392,6 +422,39 @@ function EmptyState({ text }: { text: string }) {
     <div className="rounded-[20px] bg-[#F7F7F5] px-5 py-4 text-sm text-[#6B6B6B]">
       {text}
     </div>
+  );
+}
+
+function ReviewArticle({ review, authorName }: { review: any; authorName: string }) {
+  return (
+    <article className="rounded-[22px] border border-black/5 bg-[#F7F7F5] p-5">
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-sm font-extrabold text-white">
+          {review.profiles?.avatar ? (
+            <img
+              src={review.profiles.avatar}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            authorName[0]?.toUpperCase()
+          )}
+        </div>
+        <div>
+          <div className="font-extrabold">{authorName}</div>
+          <div className="text-xs text-[#8D8D8D]">
+            {new Date(review.created_at).toLocaleDateString("ru-RU")}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 text-sm font-bold text-[#FFB800]">
+        {"★".repeat(review.rating)}
+      </div>
+      <p className="mt-3 leading-relaxed text-[#555555]">
+        {review.text || "Без текста"}
+      </p>
+    </article>
   );
 }
 
