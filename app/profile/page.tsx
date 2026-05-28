@@ -170,6 +170,16 @@ export default function ProfilePage() {
     );
   }
 
+  async function updateMyBooking(bookingId: string, updates: Record<string, string>) {
+    await supabase.from("bookings").update(updates).eq("id", bookingId);
+
+    setMyBookings((prev) =>
+      prev.map((booking) =>
+        booking.id === bookingId ? { ...booking, ...updates } : booking
+      )
+    );
+  }
+
   async function saveProfile() {
     if (!user) return;
 
@@ -530,6 +540,7 @@ export default function ProfilePage() {
                         getBookingTotal={getBookingTotal}
                         formatDateRange={formatDateRange}
                         handlePayment={handlePayment}
+                        updateMyBooking={updateMyBooking}
                       />
                     ))}
                   </div>
@@ -784,6 +795,7 @@ function IncomingBookingRow({
 }) {
   const renterName = renterProfile?.full_name || renterProfile?.username || "Арендатор";
   const renterInitial = renterName[0]?.toUpperCase() || "А";
+  const statusText = getBookingStatusText(booking.status, booking.payment_status);
 
   return (
     <div className="grid gap-4 rounded-[20px] border border-[#7BC47F]/25 bg-[#F8FFF8] p-3 md:grid-cols-[110px_minmax(0,1fr)_160px] md:items-center">
@@ -822,18 +834,19 @@ function IncomingBookingRow({
           </span>
         </div>
         <span className="mt-3 inline-flex rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-700">
-          {booking.status === "pending" ? "Ожидает подтверждения" : booking.status}
+          {statusText}
         </span>
       </div>
 
-      {booking.status === "pending" && (
-        <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
           <Link
             href={`/chat/${booking.item_id}?owner=${booking.renter_id}&booking=${booking.id}`}
             className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-center text-sm font-bold transition hover:bg-[#F7F7F5]"
           >
             Написать
           </Link>
+      {booking.status === "pending" && (
+        <>
           <button
             onClick={() => updateBookingStatus(booking.id, "approved")}
             className="rounded-full bg-[#7BC47F] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#69B56E]"
@@ -846,8 +859,25 @@ function IncomingBookingRow({
           >
             Отклонить
           </button>
-        </div>
+        </>
       )}
+      {booking.status === "approved" && booking.payment_status === "paid" && (
+        <button
+          onClick={() => updateBookingStatus(booking.id, "active")}
+          className="rounded-full bg-[#7BC47F] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#69B56E]"
+        >
+          Начать аренду
+        </button>
+      )}
+      {booking.status === "active" && (
+        <button
+          onClick={() => updateBookingStatus(booking.id, "completed")}
+          className="rounded-full bg-[#111111] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#2A2A2A]"
+        >
+          Завершить
+        </button>
+      )}
+      </div>
     </div>
   );
 }
@@ -859,6 +889,7 @@ function MyBookingRow({
   getBookingTotal,
   formatDateRange,
   handlePayment,
+  updateMyBooking,
 }: {
   booking: any;
   ownerProfile?: any;
@@ -866,8 +897,10 @@ function MyBookingRow({
   getBookingTotal: (booking: any) => number;
   formatDateRange: (booking: any) => string;
   handlePayment: (bookingId: string) => void;
+  updateMyBooking: (bookingId: string, updates: Record<string, string>) => void;
 }) {
   const ownerName = ownerProfile?.full_name || ownerProfile?.username || "Владелец";
+  const statusText = getBookingStatusText(booking.status, booking.payment_status);
 
   return (
     <div className="grid gap-4 rounded-[20px] border border-black/5 bg-white p-3 md:grid-cols-[92px_minmax(0,1fr)_140px] md:items-center">
@@ -896,7 +929,11 @@ function MyBookingRow({
         </div>
       </div>
 
-      {booking.payment_status !== "paid" && (
+      <div className="flex flex-col gap-2">
+      <span className="rounded-full bg-yellow-100 px-3 py-1 text-center text-xs font-bold text-yellow-700">
+        {statusText}
+      </span>
+      {booking.status === "approved" && booking.payment_status !== "paid" && (
         <button
           onClick={() => handlePayment(booking.id)}
           className="rounded-full bg-[#7BC47F] px-4 py-2.5 text-sm font-bold text-white"
@@ -904,8 +941,36 @@ function MyBookingRow({
           Оплатить
         </button>
       )}
+      {booking.status === "pending" && (
+        <button
+          onClick={() => updateMyBooking(booking.id, { status: "cancelled" })}
+          className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm font-bold transition hover:bg-[#F7F7F5]"
+        >
+          Отменить
+        </button>
+      )}
+      {booking.status === "completed" && (
+        <Link
+          href={`/item/${booking.item_id}`}
+          className="rounded-full bg-[#111111] px-4 py-2.5 text-center text-sm font-bold text-white"
+        >
+          Оставить отзыв
+        </Link>
+      )}
+      </div>
     </div>
   );
+}
+
+function getBookingStatusText(status: string, paymentStatus?: string) {
+  if (status === "pending") return "Ожидает подтверждения";
+  if (status === "approved" && paymentStatus !== "paid") return "Подтверждена, ожидает оплату";
+  if (status === "approved" && paymentStatus === "paid") return "Оплачена, ждет начала";
+  if (status === "active") return "Аренда активна";
+  if (status === "completed") return "Завершена";
+  if (status === "rejected") return "Отклонена";
+  if (status === "cancelled") return "Отменена";
+  return status;
 }
 
 function MiniItemCard({ item }: { item: any }) {
