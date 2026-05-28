@@ -45,13 +45,26 @@ export default function Navbar() {
     let channel: RealtimeChannel | null = null;
     let active = true;
 
-    async function init() {
-      setMounted(true);
+    function clearUserState() {
+      setUser(null);
+      setProfile(null);
+      setNotifications([]);
+      setNotificationsOpen(false);
+      setMenuOpen(false);
+    }
 
-      const { data } = await supabase.auth.getUser();
-      const currentUser = data.user;
+    async function setupUser(currentUser: User | null) {
+      if (!active) return;
 
-      if (!active || !currentUser) return;
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
+      }
+
+      if (!currentUser) {
+        clearUserState();
+        return;
+      }
 
       setUser(currentUser);
       await Promise.all([
@@ -74,10 +87,24 @@ export default function Navbar() {
         .subscribe();
     }
 
+    async function init() {
+      setMounted(true);
+
+      const { data } = await supabase.auth.getUser();
+      await setupUser(data.user);
+    }
+
     init();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setupUser(session?.user || null);
+    });
 
     return () => {
       active = false;
+      subscription.unsubscribe();
       if (channel) {
         supabase.removeChannel(channel);
       }
