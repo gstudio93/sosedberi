@@ -12,6 +12,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState<AdminTab>("finance");
+  const [adminUserId, setAdminUserId] = useState("");
   const [users, setUsers] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
@@ -42,6 +43,7 @@ export default function AdminPage() {
       return;
     }
 
+    setAdminUserId(currentUser.id);
     setIsAdmin(true);
     await Promise.all([loadUsers(), loadItems(), loadBookings()]);
     setLoading(false);
@@ -87,13 +89,84 @@ export default function AdminPage() {
     setBookings(data || []);
   }
 
-  async function deleteItem(id: string) {
-    const confirmed = confirm("Удалить объявление?");
+  async function approveItem(id: string) {
+    const moderatedAt = new Date().toISOString();
+    const { error } = await supabase
+      .from("items")
+      .update({
+        moderation_status: "approved",
+        moderation_comment: null,
+        moderated_at: moderatedAt,
+        moderated_by: adminUserId,
+      })
+      .eq("id", id);
 
-    if (!confirmed) return;
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
-    await supabase.from("items").delete().eq("id", id);
-    setItems((prev) => prev.filter((item) => item.id !== id));
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              moderation_status: "approved",
+              moderation_comment: null,
+              moderated_at: moderatedAt,
+              moderated_by: adminUserId,
+            }
+          : item
+      )
+    );
+  }
+
+  async function rejectItem(id: string) {
+    const comment = prompt("Причина блокировки объявления");
+
+    if (!comment?.trim()) return;
+
+    const targetItem = items.find((item) => item.id === id);
+    const moderatedAt = new Date().toISOString();
+    const { error } = await supabase
+      .from("items")
+      .update({
+        status: "archived",
+        moderation_status: "rejected",
+        moderation_comment: comment.trim(),
+        moderated_at: moderatedAt,
+        moderated_by: adminUserId,
+      })
+      .eq("id", id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status: "archived",
+              moderation_status: "rejected",
+              moderation_comment: comment.trim(),
+              moderated_at: moderatedAt,
+              moderated_by: adminUserId,
+            }
+          : item
+      )
+    );
+
+    if (targetItem?.owner_id) {
+      await supabase.from("notifications").insert({
+        user_id: targetItem.owner_id,
+        type: "moderation",
+        text: `Объявление заблокировано: ${targetItem.name}`,
+        link: "/profile",
+      });
+    }
   }
 
   async function toggleVerify(userId: string, verified: boolean) {
@@ -129,6 +202,9 @@ export default function AdminPage() {
     ["pending", "approved", "active"].includes(booking.status)
   );
   const pendingUsers = users.filter((user) => !user.verified || !user.phone_verified);
+  const moderationQueue = items.filter(
+    (item) => (item.moderation_status || "pending") === "pending"
+  );
 
   const finance = useMemo(() => {
     const paidVolume = paidBookings.reduce(
@@ -216,7 +292,7 @@ export default function AdminPage() {
           <MiniStat label="Пользователей" value={users.length} />
           <MiniStat label="Ожидают проверки" value={pendingUsers.length} />
           <MiniStat label="Объявлений" value={items.length} />
-          <MiniStat label="Оплаченных броней" value={paidBookings.length} />
+          <MiniStat label="На модерации" value={moderationQueue.length} />
         </section>
 
         <nav className="mb-6 grid rounded-[22px] border border-black/5 bg-white p-1.5 shadow-sm md:grid-cols-4">
@@ -305,22 +381,22 @@ export default function AdminPage() {
         )}
 
         {activeTab === "moderation" && (
-          <Panel title="Модерация объявлений" subtitle="Объявления лучше показывать компактно: статус, владелец, цена и быстрые действия.">
+          <Panel title="Очередь модерации" subtitle="Сюда попадают новые и отредактированные объявления. После проверки они уходят из очереди.">
             <div className="overflow-hidden rounded-[20px] border border-black/5">
-              <TableHeader cols="grid-cols-[1.5fr_1fr_0.8fr_0.8fr]">
+              <TableHeader cols="grid-cols-[1.5fr_1fr_0.8fr_1.1fr]">
                 <span>Объявление</span>
                 <span>Локация</span>
                 <span>Цена</span>
                 <span>Действия</span>
               </TableHeader>
 
-              {items.length === 0 ? (
-                <Empty text="Пока нет объявлений." />
+              {moderationQueue.length === 0 ? (
+                <Empty text="Очередь модерации пуста." />
               ) : (
-                items.map((item) => (
+                moderationQueue.map((item) => (
                   <div
                     key={item.id}
-                    className="grid grid-cols-1 gap-3 border-t border-black/5 p-4 text-sm md:grid-cols-[1.5fr_1fr_0.8fr_0.8fr] md:items-center"
+                    className="grid grid-cols-1 gap-3 border-t border-black/5 p-4 text-sm md:grid-cols-[1.5fr_1fr_0.8fr_1.1fr] md:items-center"
                   >
                     <div className="flex items-center gap-3">
                       <img
@@ -330,12 +406,12 @@ export default function AdminPage() {
                       />
                       <div>
                         <div className="font-extrabold">{item.name}</div>
-                        <div className="text-xs text-[#8D8D8D]">{item.status || "active"}</div>
+                        <div className="text-xs text-yellow-700">На проверке</div>
                       </div>
                     </div>
                     <div className="text-[#6B6B6B]">{item.location || item.city || "Не указано"}</div>
                     <div className="font-extrabold">{formatMoney(Number(item.price || 0))}</div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Link
                         href={`/item/${item.id}`}
                         className="rounded-full bg-white px-4 py-2 text-xs font-bold"
@@ -343,10 +419,16 @@ export default function AdminPage() {
                         Открыть
                       </Link>
                       <button
-                        onClick={() => deleteItem(item.id)}
+                        onClick={() => approveItem(item.id)}
+                        className="rounded-full bg-[#7BC47F] px-4 py-2 text-xs font-bold text-white"
+                      >
+                        Одобрить
+                      </button>
+                      <button
+                        onClick={() => rejectItem(item.id)}
                         className="rounded-full bg-red-500 px-4 py-2 text-xs font-bold text-white"
                       >
-                        Удалить
+                        Блокировать
                       </button>
                     </div>
                   </div>

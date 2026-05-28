@@ -974,6 +974,8 @@ function getBookingStatusText(status: string, paymentStatus?: string) {
 }
 
 function MiniItemCard({ item }: { item: any }) {
+  const moderation = getItemModerationLabel(item);
+
   return (
     <Link
       href={`/item/${item.id}`}
@@ -988,7 +990,9 @@ function MiniItemCard({ item }: { item: any }) {
         <h3 className="line-clamp-2 text-sm font-extrabold">{item.name}</h3>
         <div className="mt-2 text-base font-extrabold">{item.price} ₽</div>
         <div className="text-xs text-[#6B6B6B]">/ день</div>
-        <div className="mt-3 text-xs text-[#3F9E47]">• Активно</div>
+        <div className={`mt-3 text-xs font-bold ${moderation.className}`}>
+          {moderation.label}
+        </div>
       </div>
     </Link>
   );
@@ -1003,6 +1007,8 @@ function OwnerItemCard({
   toggleItemStatus: (itemId: string, currentStatus: string) => void;
   deleteItem: (id: string) => void;
 }) {
+  const moderation = getItemModerationLabel(item);
+
   return (
     <div className="overflow-hidden rounded-[22px] border border-black/5 bg-[#F7F7F5] transition hover:shadow-md">
       {item.image && (
@@ -1026,6 +1032,17 @@ function OwnerItemCard({
           </span>
         </div>
 
+        <div className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-bold ${moderation.badgeClassName}`}>
+          {moderation.label}
+        </div>
+
+        {item.moderation_status === "rejected" && item.moderation_comment && (
+          <div className="mt-3 rounded-2xl bg-red-50 p-3 text-xs leading-relaxed text-red-700">
+            <span className="font-bold">Комментарий администратора: </span>
+            {item.moderation_comment}
+          </div>
+        )}
+
         <p className="mt-2 line-clamp-2 min-h-[40px] text-sm leading-snug text-[#6B6B6B]">
           {item.location}
         </p>
@@ -1039,6 +1056,12 @@ function OwnerItemCard({
             className="flex-1 rounded-full bg-white px-4 py-3 text-center text-sm font-bold"
           >
             Открыть
+          </Link>
+          <Link
+            href={`/add?edit=${item.id}`}
+            className="rounded-full bg-white px-4 py-3 text-sm font-bold"
+          >
+            Изм.
           </Link>
           <button
             onClick={() => toggleItemStatus(item.id, item.status)}
@@ -1056,4 +1079,28 @@ function OwnerItemCard({
       </div>
     </div>
   );
+}
+
+function getItemModerationLabel(item: any) {
+  if (item.moderation_status === "approved") {
+    return {
+      label: "Проверено",
+      className: "text-[#3F9E47]",
+      badgeClassName: "bg-[#E8F7EA] text-[#3F9E47]",
+    };
+  }
+
+  if (item.moderation_status === "rejected") {
+    return {
+      label: "Заблокировано",
+      className: "text-red-600",
+      badgeClassName: "bg-red-50 text-red-600",
+    };
+  }
+
+  return {
+    label: "На проверке",
+    className: "text-yellow-700",
+    badgeClassName: "bg-yellow-100 text-yellow-700",
+  };
 }

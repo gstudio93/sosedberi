@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORIES } from "@/lib/categories";
 import { supabase } from "@/lib/supabase";
 
@@ -12,7 +12,25 @@ type Suggestion = {
 };
 
 export default function AddItemPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[#F7F7F5] px-6 pb-28 pt-32 text-[#111111]">
+          <div className="mx-auto max-w-7xl rounded-[28px] bg-white p-8 shadow-sm">
+            Загружаем форму...
+          </div>
+        </main>
+      }
+    >
+      <AddItemContent />
+    </Suspense>
+  );
+}
+
+function AddItemContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("edit");
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [deposit, setDeposit] = useState("");
@@ -25,7 +43,9 @@ export default function AddItemPage() {
   const [suggestionsMessage, setSuggestionsMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingItem, setLoadingItem] = useState(!!editId);
   const suggestRequestId = useRef(0);
+  const isEditMode = !!editId;
 
   const previewImage = images[0] || "/hero.jpg";
   const priceNumber = Number(price) || 0;
@@ -35,6 +55,48 @@ export default function AddItemPage() {
     () => name.trim() && priceNumber > 0 && location.trim() && category,
     [category, location, name, priceNumber]
   );
+
+  useEffect(() => {
+    if (!editId) return;
+
+    loadEditableItem(editId);
+  }, [editId]);
+
+  async function loadEditableItem(itemId: string) {
+    setLoadingItem(true);
+
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth.user;
+
+    if (!user) {
+      alert("Войдите в аккаунт, чтобы редактировать объявление.");
+      router.push("/login");
+      return;
+    }
+
+    const { data: item, error } = await supabase
+      .from("items")
+      .select("*")
+      .eq("id", itemId)
+      .eq("owner_id", user.id)
+      .maybeSingle();
+
+    if (error || !item) {
+      console.log("LOAD EDIT ITEM ERROR:", error);
+      alert("Не удалось открыть объявление для редактирования.");
+      router.push("/profile");
+      return;
+    }
+
+    setName(item.name || "");
+    setPrice(String(Number(item.price || 0) || ""));
+    setDeposit(String(Number(item.deposit || 0) || ""));
+    setLocation(item.location || "");
+    setImages(item.images?.length ? item.images : item.image ? [item.image] : []);
+    setCategory(item.category || "");
+    setDescription(item.description || "");
+    setLoadingItem(false);
+  }
 
   async function fetchSuggestions(query: string) {
     const trimmedQuery = query.trim();
@@ -176,36 +238,63 @@ export default function AddItemPage() {
 
     const coords = await getCoordinates(location);
 
-    const { data: createdItems, error } = await supabase
-      .from("items")
-      .insert([
-        {
-          name: name.trim(),
-          description: description.trim(),
-          price: priceNumber,
-          deposit: depositNumber,
-          location: location.trim(),
-          category,
-          image: images[0] || "",
-          images,
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          owner_id: user.id,
-          status: "active",
-        },
-      ])
-      .select("id")
-      .single();
+    const payload = {
+      name: name.trim(),
+      description: description.trim(),
+      price: priceNumber,
+      deposit: depositNumber,
+      location: location.trim(),
+      category,
+      image: images[0] || "",
+      images,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      status: "active",
+      moderation_status: "pending",
+      moderation_comment: null,
+      moderated_at: null,
+      moderated_by: null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: savedItem, error } = isEditMode
+      ? await supabase
+          .from("items")
+          .update(payload)
+          .eq("id", editId)
+          .eq("owner_id", user.id)
+          .select("id")
+          .single()
+      : await supabase
+          .from("items")
+          .insert([
+            {
+              ...payload,
+              owner_id: user.id,
+            },
+          ])
+          .select("id")
+          .single();
 
     setSubmitting(false);
 
     if (error) {
-      console.log("CREATE ITEM ERROR:", error);
+      console.log("SAVE ITEM ERROR:", error);
       alert(error.message);
       return;
     }
 
-    router.push(createdItems?.id ? `/item/${createdItems.id}` : "/profile");
+    router.push(savedItem?.id ? `/item/${savedItem.id}` : "/profile");
+  }
+
+  if (loadingItem) {
+    return (
+      <main className="min-h-screen bg-[#F7F7F5] px-6 pb-28 pt-32 text-[#111111]">
+        <div className="mx-auto max-w-7xl rounded-[28px] bg-white p-8 shadow-sm">
+          Загружаем объявление...
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -214,16 +303,17 @@ export default function AddItemPage() {
         <div className="mb-10 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
           <div>
             <div className="mb-4 inline-flex rounded-full bg-[#7BC47F]/15 px-4 py-2 text-sm font-bold text-[#3F9E47]">
-              Новое объявление
+              {isEditMode ? "Редактирование" : "Новое объявление"}
             </div>
 
             <h1 className="max-w-3xl text-4xl font-black leading-tight lg:text-6xl">
-              Сдайте вещь соседям за пару минут
+              {isEditMode ? "Обновите объявление" : "Сдайте вещь соседям за пару минут"}
             </h1>
 
             <p className="mt-4 max-w-2xl text-lg leading-relaxed text-[#6B6B6B]">
-              Добавьте фото, адрес, цену и описание. После публикации вещь
-              появится в каталоге и на карте.
+              {isEditMode
+                ? "После сохранения объявление останется опубликованным, но снова попадет администратору на проверку."
+                : "Добавьте фото, адрес, цену и описание. После публикации вещь появится в каталоге и на карте."}
             </p>
           </div>
 
@@ -510,7 +600,13 @@ export default function AddItemPage() {
               disabled={!formReady || uploading || submitting}
               className="w-full rounded-full bg-[#7BC47F] px-8 py-5 text-lg font-black text-white shadow-lg shadow-[#7BC47F]/20 transition hover:bg-[#69B56E] disabled:cursor-not-allowed disabled:bg-[#B8DDBA]"
             >
-              {submitting ? "Публикуем..." : "Опубликовать вещь"}
+              {submitting
+                ? isEditMode
+                  ? "Сохраняем..."
+                  : "Публикуем..."
+                : isEditMode
+                  ? "Сохранить изменения"
+                  : "Опубликовать вещь"}
             </button>
 
             <div className="rounded-[28px] bg-white p-6 text-sm leading-relaxed text-[#6B6B6B] shadow-sm">

@@ -51,6 +51,10 @@ create table if not exists public.items (
   latitude double precision,
   longitude double precision,
   status public.item_status not null default 'active',
+  moderation_status text not null default 'pending',
+  moderation_comment text,
+  moderated_at timestamptz,
+  moderated_by uuid references auth.users(id) on delete set null,
   views integer not null default 0,
   owner_avatar text,
   created_at timestamptz not null default now(),
@@ -150,6 +154,10 @@ alter table public.items add column if not exists images text[] not null default
 alter table public.items add column if not exists latitude double precision;
 alter table public.items add column if not exists longitude double precision;
 alter table public.items add column if not exists status public.item_status not null default 'active';
+alter table public.items add column if not exists moderation_status text not null default 'pending';
+alter table public.items add column if not exists moderation_comment text;
+alter table public.items add column if not exists moderated_at timestamptz;
+alter table public.items add column if not exists moderated_by uuid references auth.users(id) on delete set null;
 alter table public.items add column if not exists views integer not null default 0;
 alter table public.items add column if not exists owner_avatar text;
 alter table public.items add column if not exists created_at timestamptz not null default now();
@@ -202,6 +210,7 @@ create index if not exists items_owner_id_idx on public.items(owner_id);
 create index if not exists items_city_idx on public.items(city);
 create index if not exists items_category_idx on public.items(category);
 create index if not exists items_status_idx on public.items(status);
+create index if not exists items_moderation_status_idx on public.items(moderation_status);
 create index if not exists favorites_user_id_idx on public.favorites(user_id);
 create index if not exists conversations_user1_id_idx on public.conversations(user1_id);
 create index if not exists conversations_user2_id_idx on public.conversations(user2_id);
@@ -240,6 +249,23 @@ create policy "Active items are public" on public.items for select using (status
 create policy "Owners insert items" on public.items for insert with check (owner_id = auth.uid());
 create policy "Owners update items" on public.items for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 create policy "Owners delete items" on public.items for delete using (owner_id = auth.uid());
+create policy "Admins read all items" on public.items for select using (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.is_admin = true
+  )
+);
+create policy "Admins update all items" on public.items for update using (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.is_admin = true
+  )
+) with check (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.is_admin = true
+  )
+);
 
 create policy "Users manage own favorites" on public.favorites for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
