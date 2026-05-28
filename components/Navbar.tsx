@@ -342,7 +342,7 @@ export default function Navbar() {
               </Link>
 
               <Link
-                href="/register"
+                href="/login?mode=register"
                 className="hidden rounded-full bg-[#111111] px-5 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#2A2A2A] sm:inline-flex"
               >
                 Регистрация

@@ -127,7 +127,7 @@ export default function MobileBottomNav() {
                 Войти
               </Link>
               <Link
-                href="/register"
+                href="/login?mode=register"
                 onClick={() => setAuthPromptOpen(false)}
                 className="rounded-full bg-[#7BC47F] px-5 py-3 text-center text-sm font-black text-[#111111]"
               >
