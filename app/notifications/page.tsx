@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "../../lib/supabase";
 
 export default function NotificationsPage() {
@@ -67,87 +68,128 @@ export default function NotificationsPage() {
     await supabase
       .from("notifications")
       .update({
-        is_is_is_read: true,
+        is_read: true,
       })
       .eq("id", id);
 
     setNotifications((prev) =>
       prev.map((notification) =>
         notification.id === id
-          ? { ...notification, is_is_is_read: true }
+          ? { ...notification, is_read: true }
           : notification
       )
     );
   }
 
+  async function markAllAsRead() {
+    if (!user) return;
+
+    await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", user.id)
+      .eq("is_read", false);
+
+    setNotifications((prev) =>
+      prev.map((notification) => ({ ...notification, is_read: true }))
+    );
+  }
+
   if (!user) {
     return (
-      <main className="min-h-screen bg-black p-10 text-white">
-        Загрузка...
+      <main className="min-h-screen bg-[#F7F7F5] px-4 pb-28 pt-24 text-[#111111] lg:px-6 lg:pt-32">
+        <div className="mx-auto max-w-3xl rounded-[28px] bg-white p-6 shadow-sm">
+          Загрузка...
+        </div>
       </main>
     );
   }
 
+  const unreadCount = notifications.filter((notification) => !notification.is_read).length;
+
   return (
-    <main className="min-h-screen bg-black px-6 py-10 text-white">
-      <div className="mx-auto max-w-3xl">
+    <main className="min-h-screen bg-[#F7F7F5] px-4 pb-28 pt-24 text-[#111111] lg:px-6 lg:pt-32">
+      <div className="mx-auto max-w-4xl">
+        <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <div className="mb-3 inline-flex rounded-full bg-[#E8F7EA] px-3 py-1 text-xs font-extrabold text-[#3F9E47]">
+              Центр событий
+            </div>
+            <h1 className="text-3xl font-black leading-tight sm:text-5xl">
+              Уведомления
+            </h1>
+            <p className="mt-2 text-sm text-[#6B6B6B] sm:text-base">
+              Брони, сообщения, модерация объявлений и решения по спорам.
+            </p>
+          </div>
 
-        <div className="mb-10 flex items-center justify-between">
-          <h1 className="text-4xl font-black">
-            Уведомления
-          </h1>
-
-          <div className="rounded-full bg-white/10 px-4 py-2 text-sm">
-            {
-              notifications.filter(
-                (n) => !n.is_read
-              ).length
-            }{" "}
-            новых
+          <div className="flex items-center gap-2">
+            <div className="rounded-full bg-white px-4 py-2 text-sm font-bold shadow-sm">
+              {unreadCount} новых
+            </div>
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllAsRead}
+                className="rounded-full bg-[#111111] px-4 py-2 text-sm font-bold text-white"
+              >
+                Прочитать
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="space-y-4">
+        <section className="rounded-[28px] border border-black/5 bg-white p-3 shadow-sm sm:p-4">
           {notifications.length === 0 ? (
-            <div className="rounded-2xl bg-white/5 p-6 text-neutral-400">
-              Пока нет уведомлений
+            <div className="rounded-[22px] bg-[#F7F7F5] p-8 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl shadow-sm">
+                🔔
+              </div>
+              <h2 className="mt-4 text-xl font-black">Пока нет уведомлений</h2>
+              <p className="mt-2 text-sm text-[#6B6B6B]">
+                Когда появятся брони, сообщения или решения админа, они будут здесь.
+              </p>
             </div>
           ) : (
-            notifications.map((notification) => (
-              <a
+            <div className="space-y-3">
+            {notifications.map((notification) => (
+              <Link
                 key={notification.id}
-                href={notification.link}
+                href={notification.link || "/profile"}
                 onClick={() =>
                   markAsRead(notification.id)
                 }
-                className={`block rounded-2xl border p-5 transition ${
-                  notification.read
-                    ? "border-white/5 bg-white/5"
-                    : "border-white/20 bg-white/10"
+                className={`block rounded-[22px] border p-4 transition sm:p-5 ${
+                  notification.is_read
+                    ? "border-black/5 bg-[#F7F7F5]"
+                    : "border-[#7BC47F]/35 bg-[#F8FFF8]"
                 }`}
               >
-                <div className="flex items-center justify-between">
-
-                  <div className="text-lg">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-base font-extrabold leading-snug sm:text-lg">
                     {notification.text}
                   </div>
 
+                    <div className="mt-2 text-sm text-[#8D8D8D]">
+                      {new Date(notification.created_at).toLocaleString("ru-RU", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                  </div>
+
                   {!notification.is_read && (
-                    <div className="h-3 w-3 rounded-full bg-green-400" />
+                    <div className="mt-1 h-3 w-3 shrink-0 rounded-full bg-[#7BC47F]" />
                   )}
-
                 </div>
-
-                <div className="mt-3 text-sm text-neutral-500">
-                  {new Date(
-                    notification.created_at
-                  ).toLocaleString()}
-                </div>
-              </a>
-            ))
+              </Link>
+            ))}
+            </div>
           )}
-        </div>
-
+        </section>
       </div>
     </main>
   );
