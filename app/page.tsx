@@ -15,6 +15,7 @@ type Item = {
   owner_avatar?: string | null;
   category?: string | null;
   owner_profile?: Profile | null;
+  rating?: ItemRating;
 };
 
 type Profile = {
@@ -22,6 +23,16 @@ type Profile = {
   full_name?: string | null;
   username?: string | null;
   avatar?: string | null;
+};
+
+type ItemRating = {
+  average: number;
+  count: number;
+};
+
+type ItemReview = {
+  item_id: string;
+  rating: number;
 };
 
 type Review = {
@@ -171,23 +182,39 @@ export default function HomePage() {
     }
 
     const rows = (data || []) as Item[];
+    const itemIds = rows.map((item) => item.id);
     const ownerIds = Array.from(
       new Set(rows.map((item) => item.owner_id).filter(Boolean))
     ) as string[];
 
-    if (!ownerIds.length) {
-      setItems(rows);
+    if (!rows.length) {
+      setItems([]);
       return;
     }
 
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, full_name, username, avatar")
-      .in("id", ownerIds);
+    const [profilesResult, reviewsResult] = await Promise.all([
+      ownerIds.length
+        ? supabase
+            .from("profiles")
+            .select("id, full_name, username, avatar")
+            .in("id", ownerIds)
+        : Promise.resolve({ data: [] }),
+      supabase.from("reviews").select("item_id, rating").in("item_id", itemIds),
+    ]);
 
     const profilesById = new Map(
-      ((profiles || []) as Profile[]).map((profile) => [profile.id, profile])
+      ((profilesResult.data || []) as Profile[]).map((profile) => [
+        profile.id,
+        profile,
+      ])
     );
+    const ratingBuckets = new Map<string, number[]>();
+
+    ((reviewsResult.data || []) as ItemReview[]).forEach((review) => {
+      const ratings = ratingBuckets.get(review.item_id) || [];
+      ratings.push(review.rating);
+      ratingBuckets.set(review.item_id, ratings);
+    });
 
     setItems(
       rows.map((item) => ({
@@ -195,6 +222,7 @@ export default function HomePage() {
         owner_profile: item.owner_id
           ? profilesById.get(item.owner_id) || null
           : null,
+        rating: getItemRating(ratingBuckets.get(item.id) || []),
       }))
     );
   }
@@ -320,6 +348,22 @@ export default function HomePage() {
       item.owner_profile?.username ||
       "S"
     ).slice(0, 1).toUpperCase();
+  }
+
+  function getItemRating(ratings: number[]): ItemRating {
+    if (!ratings.length) {
+      return {
+        average: 0,
+        count: 0,
+      };
+    }
+
+    const total = ratings.reduce((sum, rating) => sum + rating, 0);
+
+    return {
+      average: Math.round((total / ratings.length) * 10) / 10,
+      count: ratings.length,
+    };
   }
 
   return (
@@ -505,8 +549,18 @@ export default function HomePage() {
                   >
                     {favoriteIds.includes(item.id) ? "♥" : "♡"}
                   </button>
-                  <div className="absolute bottom-4 left-4 flex items-center gap-1 text-xs font-black text-[#FFD746]">
-                    ★★★★★ <span className="ml-2 text-white">5.0</span>
+                  <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-black/25 px-3 py-1.5 text-xs font-black text-white backdrop-blur-sm">
+                    {item.rating?.count ? (
+                      <>
+                        <span className="text-[#FFD746]">★</span>
+                        <span>{item.rating.average.toFixed(1)}</span>
+                        <span className="text-white/70">
+                          {item.rating.count} отзывов
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-white/80">Нет отзывов</span>
+                    )}
                   </div>
                   {item.owner_profile?.avatar || item.owner_avatar ? (
                     <img
