@@ -600,11 +600,11 @@ export default function HomePage() {
           </a>
         </div>
 
-        <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:gap-x-8 sm:gap-y-10 xl:grid-cols-3">
           {items.slice(0, 6).map((item) => (
             <a key={item.id} href={`/item/${item.id}`} className="group block">
-              <div className="relative overflow-hidden rounded-[22px] bg-white shadow-sm transition duration-300 group-hover:-translate-y-1 group-hover:shadow-xl">
-                <div className="relative h-[235px] overflow-hidden bg-[#EFEFEB]">
+              <div className="relative overflow-hidden rounded-[18px] bg-white shadow-sm transition duration-300 group-hover:-translate-y-1 group-hover:shadow-xl sm:rounded-[22px]">
+                <div className="relative h-[150px] overflow-hidden bg-[#EFEFEB] sm:h-[235px]">
                   {item.image ? (
                     <img
                       src={item.image}
@@ -612,7 +612,7 @@ export default function HomePage() {
                       className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-5xl">
+                    <div className="flex h-full items-center justify-center text-4xl sm:text-5xl">
                       📦
                     </div>
                   )}
@@ -624,17 +624,17 @@ export default function HomePage() {
                       event.stopPropagation();
                       toggleFavorite(item.id);
                     }}
-                    className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-white text-lg shadow-sm transition hover:scale-105"
+                    className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white text-base shadow-sm transition hover:scale-105 sm:right-3 sm:top-3 sm:h-10 sm:w-10 sm:text-lg"
                     aria-label="Добавить в избранное"
                   >
                     {favoriteIds.includes(item.id) ? "♥" : "♡"}
                   </button>
-                  <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-black/25 px-3 py-1.5 text-xs font-black text-white backdrop-blur-sm">
+                  <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/25 px-2 py-1 text-[10px] font-black text-white backdrop-blur-sm sm:bottom-4 sm:left-4 sm:gap-2 sm:px-3 sm:py-1.5 sm:text-xs">
                     {item.rating?.count ? (
                       <>
                         <span className="text-[#FFD746]">★</span>
                         <span>{item.rating.average.toFixed(1)}</span>
-                        <span className="text-white/70">
+                        <span className="hidden text-white/70 sm:inline">
                           {item.rating.count} отзывов
                         </span>
                       </>
@@ -645,28 +645,28 @@ export default function HomePage() {
                   {item.owner_profile?.avatar || item.owner_avatar ? (
                     <img
                       src={item.owner_profile?.avatar || item.owner_avatar || ""}
-                      className="absolute bottom-3 right-4 h-12 w-12 rounded-full border-[3px] border-white bg-[#7BC47F] object-cover"
+                      className="absolute bottom-2 right-2 h-9 w-9 rounded-full border-2 border-white bg-[#7BC47F] object-cover sm:bottom-3 sm:right-4 sm:h-12 sm:w-12 sm:border-[3px]"
                       alt="Владелец"
                     />
                   ) : (
-                    <div className="absolute bottom-3 right-4 flex h-12 w-12 items-center justify-center rounded-full border-[3px] border-white bg-[#7BC47F] text-lg font-black text-white">
+                    <div className="absolute bottom-2 right-2 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-[#7BC47F] text-sm font-black text-white sm:bottom-3 sm:right-4 sm:h-12 sm:w-12 sm:border-[3px] sm:text-lg">
                       {getOwnerInitial(item)}
                     </div>
                   )}
                 </div>
 
-                <div className="flex items-start justify-between gap-4 p-4">
+                <div className="p-3 sm:flex sm:items-start sm:justify-between sm:gap-4 sm:p-4">
                   <div className="min-w-0">
-                    <h3 className="line-clamp-1 text-lg font-black">
+                    <h3 className="line-clamp-1 text-sm font-black sm:text-lg">
                       {item.name}
                     </h3>
-                    <p className="mt-1 line-clamp-2 text-sm leading-snug text-[#6B6B6B]">
+                    <p className="mt-1 line-clamp-2 min-h-8 text-xs leading-snug text-[#6B6B6B] sm:min-h-0 sm:text-sm">
                       {item.location || "Город не указан"}
                     </p>
                   </div>
-                  <div className="shrink-0 text-right">
-                    <div className="text-xl font-black">{item.price} ₽</div>
-                    <div className="text-xs font-bold uppercase text-[#8D8D8D]">
+                  <div className="mt-3 flex items-end justify-between gap-2 sm:mt-0 sm:block sm:shrink-0 sm:text-right">
+                    <div className="text-base font-black sm:text-xl">{item.price} ₽</div>
+                    <div className="text-[10px] font-bold uppercase text-[#8D8D8D] sm:text-xs">
                       / день
                     </div>
                   </div>
