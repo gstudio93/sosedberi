@@ -26,6 +26,7 @@ console.log("ITEM ID:", itemId);
   const [peerProfile, setPeerProfile] = useState<any>(null);
   const [bookingContext, setBookingContext] = useState<any>(null);
   const [conversationProfiles, setConversationProfiles] = useState<Record<string, any>>({});
+  const [authPromptOpen, setAuthPromptOpen] = useState(false);
   useEffect(() => {
   console.log("CURRENT CONVERSATION:", conversation);
 }, [conversation]);
@@ -228,12 +229,19 @@ if (currentUser) {
 
   // ---------------- SEND MESSAGE (FIXED SAFE) ----------------
   async function sendMessage() {
-    if (!text || !user || !conversation) return;
+    if (!user) {
+      setAuthPromptOpen(true);
+      return;
+    }
+
+    const messageText = text.trim();
+
+    if (!messageText || !conversation) return;
 console.log("SEND:", {
   conversationId: conversation.id,
   sender: user.id,
   ownerId,
-  text
+  text: messageText
 });
     const receiverId =
   user.id === conversation.user1_id
@@ -246,7 +254,7 @@ console.log("SEND:", {
         item_id: itemId,
         sender_id: user.id,
         receiver_id: receiverId,
-        text,
+        text: messageText,
         is_read: false,
       },
     ]);
@@ -614,9 +622,49 @@ await supabase
   </div>
 
 </div>
-         
+        
        
       </div>
+
+      {authPromptOpen && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/30 px-4 pb-24 sm:items-center sm:justify-center sm:pb-0">
+          <div className="w-full rounded-[28px] bg-white p-6 text-[#111111] shadow-2xl sm:max-w-md">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-black">Войдите, чтобы написать</h2>
+                <p className="mt-2 text-sm leading-relaxed text-[#6B6B6B]">
+                  Сообщения доступны только авторизованным пользователям. Так владельцы и арендаторы понимают, с кем общаются.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setAuthPromptOpen(false)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F7F7F5] text-xl font-black"
+                aria-label="Закрыть"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <Link
+                href="/login"
+                className="rounded-full bg-[#7BC47F] px-5 py-4 text-center font-black text-white transition hover:scale-[1.02]"
+              >
+                Войти
+              </Link>
+
+              <Link
+                href="/login?mode=register"
+                className="rounded-full border border-black/10 bg-white px-5 py-4 text-center font-black transition hover:bg-[#F7F7F5]"
+              >
+                Регистрация
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
