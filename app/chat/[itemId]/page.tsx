@@ -354,14 +354,14 @@ await supabase
     : 0;
   // ---------------- UI ----------------
   return (
-  <main className="min-h-screen bg-[#F7F7F5] px-6 pb-10 pt-32 text-[#111111]">
-      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[340px_1fr]">
+  <main className="min-h-screen bg-[#F7F7F5] px-3 pb-24 pt-24 text-[#111111] sm:px-6 lg:pb-10 lg:pt-32">
+      <div className="mx-auto grid max-w-7xl gap-4 lg:grid-cols-[340px_1fr] lg:gap-6">
 
         {/* SIDEBAR */}
-<div className="overflow-hidden rounded-[32px] border border-black/5 bg-white shadow-sm">
+<div className="hidden overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-sm lg:block lg:rounded-[32px]">
 
-  <div className="border-b border-black/5 p-6">
-    <h2 className="text-2xl font-black">
+  <div className="border-b border-black/5 p-5 lg:p-6">
+    <h2 className="text-xl font-black lg:text-2xl">
       Сообщения
     </h2>
 
@@ -370,7 +370,7 @@ await supabase
     </p>
   </div>
 
-  <div className="p-3">
+  <div className="max-h-44 overflow-y-auto p-3 lg:max-h-none">
     {conversations.length === 0 && (
   <div className="rounded-[24px] bg-[#F7F7F5] p-6 text-center text-sm text-[#6B6B6B]">
     Пока нет диалогов
@@ -391,7 +391,7 @@ await supabase
         ? conv.user2_id
         : conv.user1_id
     }`}
-    className={`mb-2 flex items-center gap-4 rounded-[24px] p-4 transition ${
+    className={`mb-2 flex items-center gap-3 rounded-[22px] p-3 transition lg:gap-4 lg:rounded-[24px] lg:p-4 ${
       conv.id === conversation?.id
         ? "bg-[#F7F7F5]"
         : "hover:bg-[#F7F7F5]"
@@ -401,11 +401,11 @@ await supabase
     {conv.items?.image ? (
       <img
         src={conv.items.image}
-        className="h-16 w-16 rounded-2xl object-cover"
+        className="h-12 w-12 rounded-2xl object-cover lg:h-16 lg:w-16"
         alt=""
       />
     ) : (
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#7BC47F] font-black text-white">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#7BC47F] font-black text-white lg:h-16 lg:w-16">
         📦
       </div>
     )}
@@ -450,21 +450,21 @@ await supabase
 </div>
 
 {/* CHAT */}
-<div className="flex h-[78vh] flex-col overflow-hidden rounded-[32px] border border-black/5 bg-white shadow-sm">
+<div className="flex h-[calc(100dvh-170px)] min-h-[520px] flex-col overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-sm lg:h-[78vh] lg:rounded-[32px]">
 
   {/* HEADER */}
-  <div className="flex items-center justify-between border-b border-black/5 p-6">
+  <div className="flex items-center gap-3 border-b border-black/5 p-3 lg:justify-between lg:p-6">
 
-    <div className="flex items-center gap-4">
+    <div className="flex min-w-0 flex-1 items-center gap-3 lg:gap-4">
       {item?.image && (
   <img
     src={item.image}
-    className="h-16 w-16 rounded-2xl object-cover"
+    className="h-12 w-12 shrink-0 rounded-2xl object-cover lg:h-16 lg:w-16"
     alt=""
   />
 )}
 
-      <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-xl font-black text-white">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-base font-black text-white lg:h-14 lg:w-14 lg:text-xl">
         {peerProfile?.avatar ? (
           <img src={peerProfile.avatar} alt="" className="h-full w-full object-cover" />
         ) : (
@@ -472,11 +472,11 @@ await supabase
         )}
       </div>
 
-      <div>
+      <div className="min-w-0">
         <div className="mb-1 flex flex-wrap items-center gap-2">
           <Link
             href={peerId ? `/user/${peerId}` : "#"}
-            className="font-black transition hover:text-[#3F9E47]"
+            className="truncate font-black transition hover:text-[#3F9E47]"
           >
             {peerName}
           </Link>
@@ -487,11 +487,11 @@ await supabase
             </span>
           )}
         </div>
-        <div className="font-black">
+        <div className="truncate text-sm font-black lg:text-base">
   {item?.name || "Объявление"}
 </div>
 
-        <div className="text-sm text-[#6B6B6B]">
+        <div className="text-xs text-[#6B6B6B] lg:text-sm">
   {item?.price || 0} ₽ / день
 </div>
       </div>
@@ -501,20 +501,20 @@ await supabase
     {peerId && (
       <Link
         href={`/user/${peerId}`}
-        className="rounded-full bg-[#E8F7EA] px-4 py-2 text-sm font-bold text-[#3F9E47] transition hover:bg-[#DDF3E0]"
+        className="hidden rounded-full bg-[#E8F7EA] px-4 py-2 text-sm font-bold text-[#3F9E47] transition hover:bg-[#DDF3E0] sm:inline-flex"
       >
         Открыть профиль
       </Link>
     )}
 
-    <div className="rounded-full bg-[#F7F7F5] px-4 py-2 text-sm font-bold text-[#6B6B6B]">
+    <div className="hidden rounded-full bg-[#F7F7F5] px-4 py-2 text-sm font-bold text-[#6B6B6B] lg:block">
       Онлайн
     </div>
 
   </div>
 
   {bookingContext && (
-    <div className="border-b border-black/5 bg-[#F8FFF8] px-6 py-4">
+    <div className="border-b border-black/5 bg-[#F8FFF8] px-4 py-3 lg:px-6 lg:py-4">
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
         <div>
           <div className="font-black">Диалог по бронированию</div>
@@ -532,7 +532,7 @@ await supabase
   )}
 
   {/* MESSAGES */}
-  <div className="flex-1 space-y-4 overflow-y-auto bg-[#FCFCFB] p-6">
+  <div className="flex-1 space-y-3 overflow-y-auto bg-[#FCFCFB] p-4 lg:space-y-4 lg:p-6">
 
     {messages.length === 0 && (
       <div className="flex h-full items-center justify-center text-[#8D8D8D]">
@@ -551,7 +551,7 @@ await supabase
       >
 
         <div
-          className={`max-w-[75%] rounded-[24px] px-5 py-4 text-[15px] leading-relaxed shadow-sm ${
+          className={`max-w-[86%] rounded-[22px] px-4 py-3 text-[15px] leading-relaxed shadow-sm lg:max-w-[75%] lg:rounded-[24px] lg:px-5 lg:py-4 ${
             msg.sender_id === user?.id
               ? "bg-[#7BC47F] text-white"
               : "bg-white border border-black/5"
@@ -583,9 +583,9 @@ await supabase
   </div>
 
   {/* INPUT */}
-  <div className="border-t border-black/5 bg-white p-5">
+  <div className="border-t border-black/5 bg-white p-3 lg:p-5">
 
-    <div className="flex gap-3">
+    <div className="flex gap-2 lg:gap-3">
 
       <input
   value={text}
@@ -598,14 +598,15 @@ await supabase
     }
   }}
         placeholder="Написать сообщение..."
-        className="flex-1 rounded-full border border-black/5 bg-[#F7F7F5] px-6 py-4 outline-none transition focus:border-[#7BC47F]"
+        className="min-w-0 flex-1 rounded-full border border-black/5 bg-[#F7F7F5] px-4 py-3 text-sm outline-none transition focus:border-[#7BC47F] lg:px-6 lg:py-4 lg:text-base"
       />
 
       <button
         onClick={sendMessage}
-        className="rounded-full bg-[#7BC47F] px-8 font-bold text-white transition hover:scale-[1.02]"
+        className="shrink-0 rounded-full bg-[#7BC47F] px-4 text-sm font-bold text-white transition hover:scale-[1.02] lg:px-8 lg:text-base"
       >
-        Отправить
+        <span className="hidden sm:inline">Отправить</span>
+        <span className="sm:hidden">OK</span>
       </button>
 
     </div>

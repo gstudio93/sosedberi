@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const footerGroups = [
   {
@@ -37,7 +40,12 @@ const footerGroups = [
 }>;
 
 export default function Footer() {
+  const pathname = usePathname();
   const currentYear = new Date().getFullYear();
+
+  if (pathname.startsWith("/chat")) {
+    return null;
+  }
 
   return (
     <footer className="border-t border-black/10 bg-white text-[#111111]">
