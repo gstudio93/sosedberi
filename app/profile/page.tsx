@@ -57,9 +57,11 @@ export default function ProfilePage() {
       .subscribe();
 
     window.addEventListener("focus", refresh);
+    const refreshInterval = window.setInterval(refresh, 5000);
 
     return () => {
       window.removeEventListener("focus", refresh);
+      window.clearInterval(refreshInterval);
       supabase.removeChannel(channel);
     };
   }, [user]);
