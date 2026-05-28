@@ -1,18 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { YMaps, Map } from "@pbe/react-yandex-maps";
+import { YMaps, Map as YandexMap } from "@pbe/react-yandex-maps";
 import { CATEGORIES } from "@/lib/categories";
 import { supabase } from "../lib/supabase";
 
 type Item = {
   id: string;
+  owner_id?: string | null;
   name: string;
   price: number;
   location?: string | null;
   image?: string | null;
   owner_avatar?: string | null;
   category?: string | null;
+  owner_profile?: Profile | null;
+};
+
+type Profile = {
+  id: string;
+  full_name?: string | null;
+  username?: string | null;
+  avatar?: string | null;
 };
 
 type Review = {
@@ -147,7 +156,8 @@ export default function HomePage() {
     let query = supabase
       .from("items")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(6);
 
     if (selectedCity) query = query.eq("location", selectedCity);
     if (searchQuery) query = query.ilike("name", `%${searchQuery}%`);
@@ -160,7 +170,33 @@ export default function HomePage() {
       return;
     }
 
-    setItems(data || []);
+    const rows = (data || []) as Item[];
+    const ownerIds = Array.from(
+      new Set(rows.map((item) => item.owner_id).filter(Boolean))
+    ) as string[];
+
+    if (!ownerIds.length) {
+      setItems(rows);
+      return;
+    }
+
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, full_name, username, avatar")
+      .in("id", ownerIds);
+
+    const profilesById = new Map(
+      ((profiles || []) as Profile[]).map((profile) => [profile.id, profile])
+    );
+
+    setItems(
+      rows.map((item) => ({
+        ...item,
+        owner_profile: item.owner_id
+          ? profilesById.get(item.owner_id) || null
+          : null,
+      }))
+    );
   }
 
   async function loadLatestReviews() {
@@ -210,20 +246,33 @@ export default function HomePage() {
     const isFavorite = favoriteIds.includes(itemId);
 
     if (isFavorite) {
-      await supabase
+      const { error } = await supabase
         .from("favorites")
         .delete()
         .eq("user_id", user.id)
         .eq("item_id", itemId);
 
+      if (error) {
+        console.log(error);
+        return;
+      }
+
       setFavoriteIds((prev) => prev.filter((id) => id !== itemId));
     } else {
-      await supabase.from("favorites").insert([
-        {
-          user_id: user.id,
-          item_id: itemId,
-        },
-      ]);
+      const { error } = await supabase
+        .from("favorites")
+        .upsert(
+          {
+            user_id: user.id,
+            item_id: itemId,
+          },
+          { onConflict: "user_id,item_id" }
+        );
+
+      if (error) {
+        console.log(error);
+        return;
+      }
 
       setFavoriteIds((prev) => [...prev, itemId]);
     }
@@ -263,6 +312,14 @@ export default function HomePage() {
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     loadItems(city, search, category);
+  }
+
+  function getOwnerInitial(item: Item) {
+    return (
+      item.owner_profile?.full_name ||
+      item.owner_profile?.username ||
+      "S"
+    ).slice(0, 1).toUpperCase();
   }
 
   return (
@@ -440,20 +497,28 @@ export default function HomePage() {
                     type="button"
                     onClick={(event) => {
                       event.preventDefault();
+                      event.stopPropagation();
                       toggleFavorite(item.id);
                     }}
-                    className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-white text-lg shadow-sm transition hover:scale-105"
+                    className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-white text-lg shadow-sm transition hover:scale-105"
+                    aria-label="Добавить в избранное"
                   >
                     {favoriteIds.includes(item.id) ? "♥" : "♡"}
                   </button>
                   <div className="absolute bottom-4 left-4 flex items-center gap-1 text-xs font-black text-[#FFD746]">
                     ★★★★★ <span className="ml-2 text-white">5.0</span>
                   </div>
-                  <img
-                    src={item.owner_avatar || "https://i.pravatar.cc/100"}
-                    className="absolute bottom-3 right-4 h-12 w-12 rounded-full border-[3px] border-white object-cover"
-                    alt="Владелец"
-                  />
+                  {item.owner_profile?.avatar || item.owner_avatar ? (
+                    <img
+                      src={item.owner_profile?.avatar || item.owner_avatar || ""}
+                      className="absolute bottom-3 right-4 h-12 w-12 rounded-full border-[3px] border-white bg-[#7BC47F] object-cover"
+                      alt="Владелец"
+                    />
+                  ) : (
+                    <div className="absolute bottom-3 right-4 flex h-12 w-12 items-center justify-center rounded-full border-[3px] border-white bg-[#7BC47F] text-lg font-black text-white">
+                      {getOwnerInitial(item)}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-start justify-between gap-4 p-4">
@@ -563,7 +628,7 @@ export default function HomePage() {
             />
             <div className="relative mt-6 overflow-hidden rounded-[24px]">
               <YMaps query={{ apikey: process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY }}>
-                <Map
+                <YandexMap
                   defaultState={{ center: mapCenter, zoom: 13 }}
                   width="100%"
                   height="420px"
