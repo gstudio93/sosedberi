@@ -1,18 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { CATEGORIES } from "@/lib/categories";
 import { supabase } from "@/lib/supabase";
 
 type Suggestion = {
-  GeoObject: {
-    metaDataProperty: {
-      GeocoderMetaData: {
-        text: string;
-      };
-    };
-  };
+  title: string;
+  subtitle: string;
+  address: string;
 };
 
 export default function AddItemPage() {
@@ -26,8 +22,10 @@ export default function AddItemPage() {
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const suggestRequestId = useRef(0);
 
   const previewImage = images[0] || image || "/hero.jpg";
   const priceNumber = Number(price) || 0;
@@ -39,50 +37,56 @@ export default function AddItemPage() {
   );
 
   async function fetchSuggestions(query: string) {
-    if (query.length < 3) {
+    const trimmedQuery = query.trim();
+    const requestId = suggestRequestId.current + 1;
+    suggestRequestId.current = requestId;
+
+    if (trimmedQuery.length < 3) {
       setSuggestions([]);
+      setSuggestionsLoading(false);
       return;
     }
 
+    setSuggestionsLoading(true);
+
     try {
       const response = await fetch(
-        `https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY}&format=json&results=5&geocode=${encodeURIComponent(query)}`
+        `/api/address-suggest?text=${encodeURIComponent(trimmedQuery)}`
       );
 
       const data = await response.json();
-      const results =
-        data.response?.GeoObjectCollection?.featureMember || [];
 
-      setSuggestions(results);
+      if (requestId === suggestRequestId.current) {
+        setSuggestions(data.suggestions || []);
+      }
     } catch (error) {
       console.log("SUGGEST ERROR:", error);
       setSuggestions([]);
+    } finally {
+      if (requestId === suggestRequestId.current) {
+        setSuggestionsLoading(false);
+      }
     }
   }
 
   async function getCoordinates(address: string) {
     try {
       const response = await fetch(
-        `https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY}&format=json&geocode=${encodeURIComponent(address)}`
+        `/api/geocode?address=${encodeURIComponent(address)}`
       );
 
       const data = await response.json();
-      const feature =
-        data.response?.GeoObjectCollection?.featureMember?.[0];
 
-      if (!feature) {
+      if (!data.latitude || !data.longitude) {
         return {
           latitude: null,
           longitude: null,
         };
       }
 
-      const pos = feature.GeoObject.Point.pos;
-      const [longitude, latitude] = pos.split(" ").map(Number);
-
       return {
-        latitude,
-        longitude,
+        latitude: data.latitude,
+        longitude: data.longitude,
       };
     } catch (error) {
       console.log(error);
@@ -283,26 +287,37 @@ export default function AddItemPage() {
                     setLocation(e.target.value);
                     fetchSuggestions(e.target.value);
                   }}
+                  onFocus={() => fetchSuggestions(location)}
                   placeholder="Город, улица, дом"
                   className="w-full rounded-2xl bg-[#F7F7F5] px-5 py-4 text-lg outline-none transition focus:ring-2 focus:ring-[#7BC47F]"
                 />
 
-                {suggestions.length > 0 && (
+                {(suggestions.length > 0 || suggestionsLoading) && (
                   <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-2xl border border-black/5 bg-white shadow-2xl">
-                    {suggestions.map((item, index) => (
+                    {suggestionsLoading && suggestions.length === 0 && (
+                      <div className="px-5 py-4 text-sm text-[#6B6B6B]">
+                        Ищем адрес...
+                      </div>
+                    )}
+
+                    {suggestions.map((item) => (
                       <button
-                        key={index}
+                        key={item.address}
                         type="button"
                         onClick={() => {
-                          setLocation(
-                            item.GeoObject.metaDataProperty.GeocoderMetaData
-                              .text
-                          );
+                          setLocation(item.address);
                           setSuggestions([]);
                         }}
                         className="w-full border-b border-black/5 px-5 py-4 text-left text-sm transition hover:bg-[#F7F7F5]"
                       >
-                        {item.GeoObject.metaDataProperty.GeocoderMetaData.text}
+                        <span className="block font-bold text-[#111111]">
+                          {item.title || item.address}
+                        </span>
+                        {item.subtitle && (
+                          <span className="mt-1 block text-xs text-[#6B6B6B]">
+                            {item.subtitle}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>
