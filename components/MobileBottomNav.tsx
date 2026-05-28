@@ -30,10 +30,13 @@ export default function MobileBottomNav() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-[120] border-t border-black/10 bg-white px-3 py-2 shadow-2xl lg:hidden">
-      <div className="grid grid-cols-4 gap-1">
+    <nav className="fixed bottom-0 left-0 right-0 z-[120] border-t border-black/10 bg-white/95 px-3 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 shadow-2xl backdrop-blur-xl lg:hidden">
+      <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
         {links.map((link) => {
-          const active = pathname === link.href;
+          const active =
+            link.href === "/"
+              ? pathname === "/" || pathname.startsWith("/item")
+              : pathname === link.href || pathname.startsWith(`${link.href}/`);
 
           return (
             <Link

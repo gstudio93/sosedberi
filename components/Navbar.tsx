@@ -169,11 +169,11 @@ export default function Navbar() {
   const isCatalogActive = pathname === "/" || pathname.startsWith("/item");
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-50 px-4 py-3 lg:px-6">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-[28px] border border-black/5 bg-white/92 px-4 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.08)] backdrop-blur-xl lg:px-5">
+    <header className="fixed left-0 right-0 top-0 z-50 px-3 py-2 lg:px-6 lg:py-3">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-[24px] border border-black/5 bg-white/92 px-4 py-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.08)] backdrop-blur-xl lg:gap-4 lg:rounded-[28px] lg:px-5 lg:py-3">
         <Link
           href="/"
-          className="shrink-0 text-[22px] font-black leading-none text-[#111111] lg:text-2xl"
+          className="shrink-0 text-xl font-black leading-none text-[#111111] lg:text-2xl"
           aria-label="SosedBeri"
         >
           SosedBeri
@@ -343,7 +343,7 @@ export default function Navbar() {
 
               <Link
                 href="/register"
-                className="rounded-full bg-[#111111] px-5 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#2A2A2A]"
+                className="hidden rounded-full bg-[#111111] px-5 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#2A2A2A] sm:inline-flex"
               >
                 Регистрация
               </Link>

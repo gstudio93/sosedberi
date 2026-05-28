@@ -411,7 +411,7 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-[#F7F7F5] text-[#111111]">
       <section className="relative overflow-hidden bg-[#F7F7F5]">
-        <div className="grid min-h-[720px] lg:min-h-[620px] lg:grid-cols-[minmax(0,1fr)_390px]">
+        <div className="grid min-h-[660px] lg:min-h-[620px] lg:grid-cols-[minmax(0,1fr)_390px]">
           <div className="relative overflow-hidden">
             <img
               src="/hero.jpg"
@@ -421,17 +421,17 @@ export default function HomePage() {
             <div className="absolute inset-0 bg-gradient-to-r from-white/92 via-white/45 to-white/5" />
             <div className="absolute inset-0 bg-gradient-to-t from-[#F7F7F5] via-transparent to-transparent" />
 
-            <div className="relative z-10 flex h-full flex-col justify-center px-6 pb-20 pt-32 sm:px-10 lg:px-20">
+            <div className="relative z-10 flex h-full flex-col justify-center px-5 pb-16 pt-28 sm:px-10 lg:px-20 lg:pb-20 lg:pt-32">
               <div className="max-w-4xl">
-                <p className="mb-5 inline-flex rounded-full bg-white/85 px-4 py-2 text-sm font-bold shadow-sm">
+                <p className="mb-4 inline-flex rounded-full bg-white/85 px-4 py-2 text-xs font-bold shadow-sm sm:text-sm">
                   Аренда вещей у людей рядом
                 </p>
-                <h1 className="max-w-3xl text-5xl font-black leading-[0.92] tracking-[-0.02em] sm:text-6xl lg:text-[76px]">
+                <h1 className="max-w-3xl text-[44px] font-black leading-[0.92] tracking-[-0.01em] sm:text-6xl lg:text-[76px]">
                   Не покупай —
                   <br />
                   бери в аренду
                 </h1>
-                <p className="mt-6 max-w-xl text-lg leading-relaxed text-[#3F3F3F]">
+                <p className="mt-5 max-w-xl text-base leading-relaxed text-[#3F3F3F] sm:text-lg">
                   Инструменты, технику, товары для отдыха и дома можно взять на
                   пару дней у соседей.
                 </p>
@@ -439,7 +439,7 @@ export default function HomePage() {
 
               <form
                 onSubmit={submitSearch}
-                className="mt-8 w-full max-w-3xl rounded-[30px] bg-white p-2.5 shadow-xl shadow-black/10 lg:rounded-full"
+                className="mt-7 w-full max-w-3xl rounded-[26px] bg-white p-2.5 shadow-xl shadow-black/10 lg:rounded-full"
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <input
@@ -542,7 +542,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-6 py-14 lg:py-16">
+      <section id="recent-items" className="mx-auto max-w-7xl px-6 py-14 lg:py-16">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-sm font-bold uppercase text-[#7BC47F]">
@@ -553,7 +553,7 @@ export default function HomePage() {
             </h2>
           </div>
           <a
-            href="/catalog"
+            href="#recent-items"
             className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-black transition hover:border-[#7BC47F]"
           >
             Смотреть каталог
@@ -703,8 +703,8 @@ export default function HomePage() {
       </section>
 
       {locationModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4">
-          <div className="relative w-full max-w-2xl rounded-[32px] bg-white p-6 text-[#111111] shadow-2xl">
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 px-4">
+          <div className="relative max-h-[calc(100dvh-32px)] w-full max-w-2xl overflow-y-auto rounded-[32px] bg-white p-5 text-[#111111] shadow-2xl sm:p-6">
             <button
               onClick={() => setLocationModalOpen(false)}
               className="absolute right-6 top-6 text-3xl"
@@ -750,8 +750,8 @@ export default function HomePage() {
       )}
 
       {dateModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
-          <div className="relative w-full max-w-2xl rounded-[32px] bg-white p-5 text-[#111111] shadow-2xl sm:p-7">
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 px-4">
+          <div className="relative max-h-[calc(100dvh-32px)] w-full max-w-2xl overflow-y-auto rounded-[28px] bg-white p-5 text-[#111111] shadow-2xl sm:rounded-[32px] sm:p-7">
             <button
               onClick={() => setDateModalOpen(false)}
               className="absolute right-6 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-[#F3F3F0] text-2xl font-black transition hover:bg-[#E8E8E2]"
@@ -762,7 +762,7 @@ export default function HomePage() {
               <p className="text-sm font-bold uppercase text-[#7BC47F]">
                 Период аренды
               </p>
-              <h2 className="mt-2 text-3xl font-black">
+              <h2 className="mt-2 text-2xl font-black sm:text-3xl">
                 Когда нужна вещь?
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-[#6B6B6B]">
@@ -770,7 +770,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
               <DatePreset
                 title="Сегодня"
                 subtitle={new Date().toLocaleDateString("ru-RU", {
