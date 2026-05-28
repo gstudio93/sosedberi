@@ -829,7 +829,7 @@ function IncomingBookingRow({
       {booking.status === "pending" && (
         <div className="flex flex-col gap-2">
           <Link
-            href={`/chat/${booking.item_id}?owner=${booking.renter_id}`}
+            href={`/chat/${booking.item_id}?owner=${booking.renter_id}&booking=${booking.id}`}
             className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-center text-sm font-bold transition hover:bg-[#F7F7F5]"
           >
             Написать

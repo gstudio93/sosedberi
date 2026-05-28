@@ -16,6 +16,7 @@ export default function ChatPage() {
 
   const itemId = params.itemId as string;
   const ownerId = searchParams.get("owner");
+  const bookingId = searchParams.get("booking");
   console.log("OWNER ID:", ownerId);
 console.log("ITEM ID:", itemId);
 
@@ -23,6 +24,7 @@ console.log("ITEM ID:", itemId);
   const [conversation, setConversation] = useState<any>(null);
   const [item, setItem] = useState<any>(null);
   const [peerProfile, setPeerProfile] = useState<any>(null);
+  const [bookingContext, setBookingContext] = useState<any>(null);
   const [conversationProfiles, setConversationProfiles] = useState<Record<string, any>>({});
   useEffect(() => {
   console.log("CURRENT CONVERSATION:", conversation);
@@ -109,11 +111,33 @@ if (peerIds.length > 0) {
 
     setPeerProfile(data);
   }
+  async function loadBookingContext(currentUserId: string) {
+    if (!bookingId) return;
+
+    const { data } = await supabase
+      .from("bookings")
+      .select(`
+        *,
+        items (*)
+      `)
+      .eq("id", bookingId)
+      .maybeSingle();
+
+    if (!data) return;
+
+    const isParticipant =
+      data.renter_id === currentUserId || data.items?.owner_id === currentUserId;
+
+    if (isParticipant) {
+      setBookingContext(data);
+    }
+  }
   async function loadUser() {
     const { data } = await supabase.auth.getUser();
     setUser(data.user);
     if (data.user) {
   loadConversations(data.user.id);
+  loadBookingContext(data.user.id);
 }
     const { data: itemData } = await supabase
   .from("items")
@@ -238,7 +262,7 @@ await supabase
     user_id: receiverId,
     type: "message",
     text: "💬 Новое сообщение",
-    link: `/chat/${itemId}?owner=${user.id}`,
+    link: `/chat/${itemId}?owner=${user.id}${bookingId ? `&booking=${bookingId}` : ""}`,
   });
     setText("");
   }
@@ -314,6 +338,20 @@ await supabase
     "Пользователь";
 
   const peerInitial = peerName[0]?.toUpperCase() || "П";
+  const bookingDays = bookingContext
+    ? Math.max(
+        1,
+        Math.ceil(
+          (new Date(bookingContext.end_date).getTime() -
+            new Date(bookingContext.start_date).getTime()) /
+            (1000 * 60 * 60 * 24)
+        ) + 1
+      )
+    : 0;
+  const bookingTotal = bookingContext
+    ? Number(bookingContext.total_price) ||
+      bookingDays * Number(bookingContext.items?.price || item?.price || 0)
+    : 0;
   // ---------------- UI ----------------
   return (
   <main className="min-h-screen bg-[#F7F7F5] px-6 pb-10 pt-32 text-[#111111]">
@@ -474,6 +512,24 @@ await supabase
     </div>
 
   </div>
+
+  {bookingContext && (
+    <div className="border-b border-black/5 bg-[#F8FFF8] px-6 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <div>
+          <div className="font-black">Диалог по бронированию</div>
+          <div className="mt-1 text-[#6B6B6B]">
+            {new Date(bookingContext.start_date).toLocaleDateString("ru-RU")} -{" "}
+            {new Date(bookingContext.end_date).toLocaleDateString("ru-RU")} ·{" "}
+            {bookingDays} дн. · {bookingTotal.toLocaleString("ru-RU")} ₽
+          </div>
+        </div>
+        <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-700">
+          {bookingContext.status}
+        </span>
+      </div>
+    </div>
+  )}
 
   {/* MESSAGES */}
   <div className="flex-1 space-y-4 overflow-y-auto bg-[#FCFCFB] p-6">
