@@ -49,9 +49,13 @@ export default function AddItemPage() {
 
     setSuggestionsLoading(true);
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6500);
+
     try {
       const response = await fetch(
-        `/api/address-suggest?text=${encodeURIComponent(trimmedQuery)}`
+        `/api/address-suggest?text=${encodeURIComponent(trimmedQuery)}`,
+        { signal: controller.signal }
       );
 
       const data = await response.json();
@@ -61,8 +65,11 @@ export default function AddItemPage() {
       }
     } catch (error) {
       console.log("SUGGEST ERROR:", error);
-      setSuggestions([]);
+      if (requestId === suggestRequestId.current) {
+        setSuggestions([]);
+      }
     } finally {
+      clearTimeout(timeout);
       if (requestId === suggestRequestId.current) {
         setSuggestionsLoading(false);
       }

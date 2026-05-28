@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     url.searchParams.set("lang", "ru_RU");
     url.searchParams.set("geocode", address);
 
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url.toString());
 
     if (!response.ok) {
       return NextResponse.json({ latitude: null, longitude: null });
@@ -44,5 +44,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ latitude, longitude });
   } catch {
     return NextResponse.json({ latitude: null, longitude: null });
+  }
+}
+
+async function fetchWithTimeout(url: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4500);
+
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
   }
 }

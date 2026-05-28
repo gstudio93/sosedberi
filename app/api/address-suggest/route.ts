@@ -24,8 +24,11 @@ export async function GET(request: Request) {
     );
   }
 
+  const suggestResults = await fetchGeoSuggest(text);
   const suggestions =
-    (await fetchGeoSuggest(text)) || (await fetchGeocoderSuggest(text));
+    suggestResults && suggestResults.length > 0
+      ? suggestResults
+      : await fetchGeocoderSuggest(text);
 
   return NextResponse.json({ suggestions: suggestions || [] });
 }
@@ -40,7 +43,7 @@ async function fetchGeoSuggest(text: string): Promise<AddressSuggestion[] | null
     url.searchParams.set("results", "6");
     url.searchParams.set("print_address", "1");
 
-    const response = await fetch(url, { next: { revalidate: 60 } });
+    const response = await fetchWithTimeout(url.toString());
 
     if (!response.ok) {
       return null;
@@ -76,7 +79,7 @@ async function fetchGeocoderSuggest(text: string): Promise<AddressSuggestion[] |
     url.searchParams.set("lang", "ru_RU");
     url.searchParams.set("geocode", text);
 
-    const response = await fetch(url, { next: { revalidate: 60 } });
+    const response = await fetchWithTimeout(url.toString());
 
     if (!response.ok) {
       return null;
@@ -99,5 +102,19 @@ async function fetchGeocoderSuggest(text: string): Promise<AddressSuggestion[] |
       .filter((item: AddressSuggestion) => item.address);
   } catch {
     return null;
+  }
+}
+
+async function fetchWithTimeout(url: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4500);
+
+  try {
+    return await fetch(url, {
+      signal: controller.signal,
+      next: { revalidate: 60 },
+    });
+  } finally {
+    clearTimeout(timeout);
   }
 }
