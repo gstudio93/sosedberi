@@ -343,7 +343,7 @@ export default function ProfilePage() {
   async function uploadReportPhotos(files: File[], bookingId: string, reportType: string) {
     const uploadedUrls: string[] = [];
 
-    for (const file of files.slice(0, 5)) {
+    for (const file of files.slice(0, 3)) {
       if (!file.type.startsWith("image/")) continue;
 
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
@@ -452,10 +452,13 @@ export default function ProfilePage() {
     patchBookingState(booking.id, { status: nextStatus });
   }
 
-  async function openRentalDispute(booking: any, report?: any) {
-    const reason = prompt("Коротко опишите проблему");
+  async function openRentalDispute(booking: any, report: any, files: File[], reason: string) {
+    if (!reason.trim()) {
+      alert("Опишите проблему перед открытием спора.");
+      return;
+    }
 
-    if (!reason?.trim()) return;
+    const disputePhotos = await uploadReportPhotos(files, booking.id, "dispute");
 
     await supabase.from("bookings").update({ status: "dispute" }).eq("id", booking.id);
 
@@ -465,6 +468,7 @@ export default function ProfilePage() {
         .update({
           status: "disputed",
           dispute_comment: reason.trim(),
+          dispute_photos: disputePhotos,
         })
         .eq("id", report.id)
         .select("*")
@@ -1018,7 +1022,7 @@ function IncomingBookingRow({
   returnReport?: any;
   createRentalReport: (booking: any, reportType: "handover" | "return", files: File[], comment: string) => void;
   confirmRentalReport: (booking: any, report: any) => void;
-  openRentalDispute: (booking: any, report?: any) => void;
+  openRentalDispute: (booking: any, report: any, files: File[], reason: string) => void;
 }) {
   const renterName = renterProfile?.full_name || renterProfile?.username || "Арендатор";
   const renterInitial = renterName[0]?.toUpperCase() || "А";
@@ -1100,7 +1104,7 @@ function IncomingBookingRow({
           title="Акт передачи отправлен"
           report={handoverReport}
           hint="Ждем подтверждение арендатора."
-          onDispute={() => openRentalDispute(booking, handoverReport)}
+          onDispute={(files, reason) => openRentalDispute(booking, handoverReport, files, reason)}
         />
       )}
       {returnReport && booking.status === "return_pending" && (
@@ -1110,7 +1114,7 @@ function IncomingBookingRow({
           hint="Проверьте состояние и подтвердите возврат."
           confirmLabel="Принять возврат"
           onConfirm={() => confirmRentalReport(booking, returnReport)}
-          onDispute={() => openRentalDispute(booking, returnReport)}
+          onDispute={(files, reason) => openRentalDispute(booking, returnReport, files, reason)}
         />
       )}
       </div>
@@ -1143,7 +1147,7 @@ function MyBookingRow({
   returnReport?: any;
   createRentalReport: (booking: any, reportType: "handover" | "return", files: File[], comment: string) => void;
   confirmRentalReport: (booking: any, report: any) => void;
-  openRentalDispute: (booking: any, report?: any) => void;
+  openRentalDispute: (booking: any, report: any, files: File[], reason: string) => void;
 }) {
   const ownerName = ownerProfile?.full_name || ownerProfile?.username || "Владелец";
   const statusText = getBookingStatusText(booking.status, booking.payment_status);
@@ -1202,7 +1206,7 @@ function MyBookingRow({
           hint="Проверьте фото и подтвердите получение."
           confirmLabel="Принял вещь"
           onConfirm={() => confirmRentalReport(booking, handoverReport)}
-          onDispute={() => openRentalDispute(booking, handoverReport)}
+          onDispute={(files, reason) => openRentalDispute(booking, handoverReport, files, reason)}
         />
       )}
       {booking.status === "active" && !returnReport && (
@@ -1217,7 +1221,7 @@ function MyBookingRow({
           title="Акт возврата отправлен"
           report={returnReport}
           hint="Ждем подтверждение владельца."
-          onDispute={() => openRentalDispute(booking, returnReport)}
+          onDispute={(files, reason) => openRentalDispute(booking, returnReport, files, reason)}
         />
       )}
       {booking.status === "completed" && (
@@ -1280,10 +1284,11 @@ function ReportForm({
           type="file"
           accept="image/*"
           multiple
-          onChange={(event) => setFiles(Array.from(event.target.files || []).slice(0, 5))}
+          onChange={(event) => setFiles(Array.from(event.target.files || []).slice(0, 3))}
           className="mt-2 w-full text-xs"
         />
       </label>
+      <div className="mt-1 text-[11px] text-[#8D8D8D]">До 3 фото</div>
       <textarea
         value={comment}
         onChange={(event) => setComment(event.target.value)}
@@ -1315,8 +1320,22 @@ function ReportSummary({
   hint: string;
   confirmLabel?: string;
   onConfirm?: () => void;
-  onDispute: () => void;
+  onDispute: (files: File[], reason: string) => void;
 }) {
+  const [disputeOpen, setDisputeOpen] = useState(false);
+  const [disputeReason, setDisputeReason] = useState("");
+  const [disputeFiles, setDisputeFiles] = useState<File[]>([]);
+  const [savingDispute, setSavingDispute] = useState(false);
+
+  async function submitDispute() {
+    setSavingDispute(true);
+    await onDispute(disputeFiles, disputeReason);
+    setSavingDispute(false);
+    setDisputeOpen(false);
+    setDisputeReason("");
+    setDisputeFiles([]);
+  }
+
   return (
     <div className="rounded-2xl border border-black/5 bg-white p-3 text-xs">
       <div className="font-extrabold">{title}</div>
@@ -1335,6 +1354,21 @@ function ReportSummary({
           ))}
         </div>
       )}
+      {report.dispute_comment && (
+        <div className="mt-3 rounded-xl bg-red-50 p-2 text-red-700">
+          <div className="font-bold">Спор открыт</div>
+          <div className="mt-1">{report.dispute_comment}</div>
+          {report.dispute_photos?.length > 0 && (
+            <div className="mt-2 flex gap-2 overflow-x-auto">
+              {report.dispute_photos.map((photo: string) => (
+                <a key={photo} href={photo} target="_blank" className="shrink-0">
+                  <img src={photo} alt="" className="h-14 w-14 rounded-xl object-cover" />
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div className="mt-3 flex flex-col gap-2">
         {confirmLabel && onConfirm && (
           <button
@@ -1347,12 +1381,41 @@ function ReportSummary({
         )}
         <button
           type="button"
-          onClick={onDispute}
+          onClick={() => setDisputeOpen((value) => !value)}
           className="rounded-full border border-red-100 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600"
         >
           Открыть спор
         </button>
       </div>
+      {disputeOpen && (
+        <div className="mt-3 rounded-2xl border border-red-100 bg-red-50 p-3">
+          <textarea
+            value={disputeReason}
+            onChange={(event) => setDisputeReason(event.target.value)}
+            placeholder="Опишите проблему: повреждение, неполная комплектация, спор по залогу"
+            className="min-h-20 w-full rounded-2xl bg-white p-3 text-xs outline-none"
+          />
+          <label className="mt-2 block text-xs font-bold text-red-700">
+            Фото дефекта
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(event) => setDisputeFiles(Array.from(event.target.files || []).slice(0, 3))}
+              className="mt-2 w-full text-xs"
+            />
+          </label>
+          <div className="mt-1 text-[11px] text-red-600/70">Можно приложить до 3 фото</div>
+          <button
+            type="button"
+            onClick={submitDispute}
+            disabled={savingDispute || !disputeReason.trim()}
+            className="mt-3 w-full rounded-full bg-red-500 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+          >
+            {savingDispute ? "Открываем..." : "Отправить спор"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

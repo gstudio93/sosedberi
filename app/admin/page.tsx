@@ -6,7 +6,7 @@ import { supabase } from "../../lib/supabase";
 
 const COMMISSION_RATE = 0.1;
 
-type AdminTab = "finance" | "bookings" | "users" | "moderation";
+type AdminTab = "finance" | "bookings" | "users" | "moderation" | "disputes";
 
 export default function AdminPage() {
   const [loading, setLoading] = useState(true);
@@ -16,6 +16,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [disputes, setDisputes] = useState<any[]>([]);
 
   useEffect(() => {
     init();
@@ -45,7 +46,7 @@ export default function AdminPage() {
 
     setAdminUserId(currentUser.id);
     setIsAdmin(true);
-    await Promise.all([loadUsers(), loadItems(), loadBookings()]);
+    await Promise.all([loadUsers(), loadItems(), loadBookings(), loadDisputes()]);
     setLoading(false);
   }
 
@@ -87,6 +88,43 @@ export default function AdminPage() {
       .order("created_at", { ascending: false });
 
     setBookings(data || []);
+  }
+
+  async function loadDisputes() {
+    const { data, error } = await supabase
+      .from("rental_handover_reports")
+      .select(
+        `
+        *,
+        bookings (
+          id,
+          renter_id,
+          start_date,
+          end_date,
+          status,
+          total_price,
+          deposit_amount,
+          items (
+            id,
+            name,
+            image,
+            owner_id,
+            price,
+            deposit,
+            location
+          )
+        )
+      `
+      )
+      .in("status", ["disputed", "resolved"])
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.log("DISPUTES ERROR:", error);
+      return;
+    }
+
+    setDisputes(data || []);
   }
 
   async function approveItem(id: string) {
@@ -197,6 +235,84 @@ export default function AdminPage() {
     );
   }
 
+  async function resolveDispute(report: any, resolution: "full_refund" | "partial_refund" | "withhold") {
+    const deposit = Number(report.bookings?.deposit_amount || report.bookings?.items?.deposit || 0);
+    const resolutionLabels = {
+      full_refund: "Вернуть залог полностью",
+      partial_refund: "Вернуть залог частично",
+      withhold: "Удержать залог полностью",
+    };
+    const amountInput =
+      resolution === "partial_refund"
+        ? prompt(`Сколько вернуть арендатору? Максимум: ${formatMoney(deposit)}`, String(deposit))
+        : null;
+    const refundAmount =
+      resolution === "full_refund"
+        ? deposit
+        : resolution === "withhold"
+          ? 0
+          : Math.max(0, Math.min(deposit, Number(amountInput || 0)));
+
+    if (resolution === "partial_refund" && amountInput === null) return;
+
+    const comment = prompt("Комментарий к решению для участников сделки") || "";
+    const resolvedAt = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("rental_handover_reports")
+      .update({
+        status: "resolved",
+        resolution,
+        resolution_comment: comment.trim(),
+        deposit_refund_amount: refundAmount,
+        deposit_withheld_amount: Math.max(0, deposit - refundAmount),
+        resolved_at: resolvedAt,
+        resolved_by: adminUserId,
+      })
+      .eq("id", report.id)
+      .select(
+        `
+        *,
+        bookings (
+          id,
+          renter_id,
+          start_date,
+          end_date,
+          status,
+          total_price,
+          deposit_amount,
+          items (
+            id,
+            name,
+            image,
+            owner_id,
+            price,
+            deposit,
+            location
+          )
+        )
+      `
+      )
+      .single();
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await supabase.from("bookings").update({ status: "completed" }).eq("id", report.booking_id);
+    setDisputes((prev) => prev.map((item) => (item.id === report.id ? data : item)));
+
+    const participants = [report.bookings?.renter_id, report.bookings?.items?.owner_id].filter(Boolean);
+    await supabase.from("notifications").insert(
+      participants.map((userId: string) => ({
+        user_id: userId,
+        type: "dispute",
+        text: `Решение по спору: ${resolutionLabels[resolution]}`,
+        link: "/profile",
+      }))
+    );
+  }
+
   const paidBookings = bookings.filter((booking) => booking.payment_status === "paid");
   const activeBookings = bookings.filter((booking) =>
     ["pending", "approved", "handover_pending", "active", "return_pending", "dispute"].includes(booking.status)
@@ -205,6 +321,8 @@ export default function AdminPage() {
   const moderationQueue = items.filter(
     (item) => (item.moderation_status || "pending") === "pending"
   );
+  const openDisputes = disputes.filter((report) => report.status === "disputed");
+  const closedDisputes = disputes.filter((report) => report.status === "resolved");
 
   const finance = useMemo(() => {
     const paidVolume = paidBookings.reduce(
@@ -292,10 +410,10 @@ export default function AdminPage() {
           <MiniStat label="Пользователей" value={users.length} />
           <MiniStat label="Ожидают проверки" value={pendingUsers.length} />
           <MiniStat label="Объявлений" value={items.length} />
-          <MiniStat label="На модерации" value={moderationQueue.length} />
+          <MiniStat label="Открытых споров" value={openDisputes.length} />
         </section>
 
-        <nav className="mb-6 grid rounded-[22px] border border-black/5 bg-white p-1.5 shadow-sm md:grid-cols-4">
+        <nav className="mb-6 grid rounded-[22px] border border-black/5 bg-white p-1.5 shadow-sm md:grid-cols-5">
           <TabButton active={activeTab === "finance"} onClick={() => setActiveTab("finance")}>
             Финансы
           </TabButton>
@@ -307,6 +425,9 @@ export default function AdminPage() {
           </TabButton>
           <TabButton active={activeTab === "moderation"} onClick={() => setActiveTab("moderation")}>
             Модерация
+          </TabButton>
+          <TabButton active={activeTab === "disputes"} onClick={() => setActiveTab("disputes")}>
+            Споры
           </TabButton>
         </nav>
 
@@ -434,6 +555,44 @@ export default function AdminPage() {
                   </div>
                 ))
               )}
+            </div>
+          </Panel>
+        )}
+
+        {activeTab === "disputes" && (
+          <Panel title="Споры по аренде" subtitle="Открытые споры требуют решения по залогу. Закрытые остаются в истории.">
+            <div className="mb-6">
+              <h3 className="mb-3 text-lg font-extrabold">Открытые</h3>
+              <div className="space-y-3">
+                {openDisputes.length === 0 ? (
+                  <Empty text="Открытых споров нет." />
+                ) : (
+                  openDisputes.map((report) => (
+                    <DisputeRow
+                      key={report.id}
+                      report={report}
+                      resolveDispute={resolveDispute}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="mb-3 text-lg font-extrabold">Закрытые</h3>
+              <div className="space-y-3">
+                {closedDisputes.length === 0 ? (
+                  <Empty text="Закрытых споров пока нет." />
+                ) : (
+                  closedDisputes.map((report) => (
+                    <DisputeRow
+                      key={report.id}
+                      report={report}
+                      resolveDispute={resolveDispute}
+                    />
+                  ))
+                )}
+              </div>
             </div>
           </Panel>
         )}
@@ -600,6 +759,106 @@ function BookingRow({ booking }: { booking: any }) {
       <div className="font-extrabold">{formatMoney(getBookingAmount(booking))}</div>
       <div className="text-sm text-[#6B6B6B]">Оплата: {booking.payment_status}</div>
       <StatusBadge status={booking.status} />
+    </div>
+  );
+}
+
+function DisputeRow({
+  report,
+  resolveDispute,
+}: {
+  report: any;
+  resolveDispute: (report: any, resolution: "full_refund" | "partial_refund" | "withhold") => void;
+}) {
+  const booking = report.bookings;
+  const item = booking?.items;
+  const deposit = Number(booking?.deposit_amount || item?.deposit || 0);
+  const resolutionLabel: Record<string, string> = {
+    full_refund: "Залог вернуть полностью",
+    partial_refund: "Залог вернуть частично",
+    withhold: "Залог удержать",
+  };
+
+  return (
+    <div className="rounded-[20px] border border-black/5 bg-[#F7F7F5] p-4">
+      <div className="grid gap-4 md:grid-cols-[96px_minmax(0,1fr)_220px] md:items-start">
+        <img
+          src={item?.image || "/hero.jpg"}
+          alt=""
+          className="h-20 w-full rounded-2xl object-cover"
+        />
+
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-extrabold">{item?.name || "Бронь"}</h3>
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${
+              report.status === "resolved" ? "bg-[#E8F7EA] text-[#3F9E47]" : "bg-red-50 text-red-600"
+            }`}>
+              {report.status === "resolved" ? "Закрыт" : "Открыт"}
+            </span>
+          </div>
+          <div className="mt-1 text-sm text-[#6B6B6B]">
+            {report.type === "return" ? "Спор при возврате" : "Спор при передаче"} · Залог: {formatMoney(deposit)}
+          </div>
+          {report.dispute_comment && (
+            <div className="mt-3 rounded-2xl bg-white p-3 text-sm text-[#333333]">
+              {report.dispute_comment}
+            </div>
+          )}
+          {report.dispute_photos?.length > 0 && (
+            <div className="mt-3 flex gap-2 overflow-x-auto">
+              {report.dispute_photos.map((photo: string) => (
+                <a key={photo} href={photo} target="_blank" className="shrink-0">
+                  <img src={photo} alt="" className="h-16 w-16 rounded-xl object-cover" />
+                </a>
+              ))}
+            </div>
+          )}
+          {report.status === "resolved" && (
+            <div className="mt-3 rounded-2xl bg-white p-3 text-sm">
+              <div className="font-bold">{resolutionLabel[report.resolution] || "Решение принято"}</div>
+              <div className="mt-1 text-[#6B6B6B]">
+                Вернуть: {formatMoney(Number(report.deposit_refund_amount || 0))} · Удержать:{" "}
+                {formatMoney(Number(report.deposit_withheld_amount || 0))}
+              </div>
+              {report.resolution_comment && (
+                <div className="mt-2 text-[#555555]">{report.resolution_comment}</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Link
+            href={item?.id ? `/item/${item.id}` : "/admin"}
+            className="rounded-full bg-white px-4 py-2.5 text-center text-sm font-bold"
+          >
+            Открыть объявление
+          </Link>
+          {report.status !== "resolved" && (
+            <>
+              <button
+                onClick={() => resolveDispute(report, "full_refund")}
+                className="rounded-full bg-[#7BC47F] px-4 py-2.5 text-sm font-bold text-white"
+              >
+                Вернуть залог
+              </button>
+              <button
+                onClick={() => resolveDispute(report, "partial_refund")}
+                className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm font-bold"
+              >
+                Вернуть частично
+              </button>
+              <button
+                onClick={() => resolveDispute(report, "withhold")}
+                className="rounded-full bg-[#111111] px-4 py-2.5 text-sm font-bold text-white"
+              >
+                Удержать залог
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -125,8 +125,15 @@ create table if not exists public.rental_handover_reports (
   confirmed_by uuid references auth.users(id) on delete set null,
   photos text[] not null default '{}',
   comment text,
-  status text not null default 'pending' check (status in ('pending', 'confirmed', 'disputed')),
+  status text not null default 'pending' check (status in ('pending', 'confirmed', 'disputed', 'resolved')),
   dispute_comment text,
+  dispute_photos text[] not null default '{}',
+  resolution text check (resolution in ('full_refund', 'partial_refund', 'withhold')),
+  resolution_comment text,
+  deposit_refund_amount numeric(12, 2),
+  deposit_withheld_amount numeric(12, 2),
+  resolved_at timestamptz,
+  resolved_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   confirmed_at timestamptz,
   unique (booking_id, type)
@@ -215,6 +222,13 @@ alter table public.rental_handover_reports add column if not exists photos text[
 alter table public.rental_handover_reports add column if not exists comment text;
 alter table public.rental_handover_reports add column if not exists status text not null default 'pending';
 alter table public.rental_handover_reports add column if not exists dispute_comment text;
+alter table public.rental_handover_reports add column if not exists dispute_photos text[] not null default '{}';
+alter table public.rental_handover_reports add column if not exists resolution text;
+alter table public.rental_handover_reports add column if not exists resolution_comment text;
+alter table public.rental_handover_reports add column if not exists deposit_refund_amount numeric(12, 2);
+alter table public.rental_handover_reports add column if not exists deposit_withheld_amount numeric(12, 2);
+alter table public.rental_handover_reports add column if not exists resolved_at timestamptz;
+alter table public.rental_handover_reports add column if not exists resolved_by uuid references auth.users(id) on delete set null;
 alter table public.rental_handover_reports add column if not exists created_at timestamptz not null default now();
 alter table public.rental_handover_reports add column if not exists confirmed_at timestamptz;
 
@@ -349,6 +363,23 @@ create policy "Booking participants update handover reports" on public.rental_ha
     select 1 from public.bookings b
     join public.items i on i.id = b.item_id
     where b.id = booking_id and (b.renter_id = auth.uid() or i.owner_id = auth.uid())
+  )
+);
+create policy "Admins read handover reports" on public.rental_handover_reports for select using (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.is_admin = true
+  )
+);
+create policy "Admins update handover reports" on public.rental_handover_reports for update using (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.is_admin = true
+  )
+) with check (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.is_admin = true
   )
 );
 
