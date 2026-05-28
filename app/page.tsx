@@ -110,6 +110,7 @@ export default function HomePage() {
   const [endDate, setEndDate] = useState("");
   const [currentCity, setCurrentCity] = useState("Ваш город");
   const [locationModalOpen, setLocationModalOpen] = useState(false);
+  const [oauthError, setOauthError] = useState("");
 
   const visibleCategories = useMemo(
     () => quickCategories.filter((cat) => CATEGORIES.includes(cat)),
@@ -121,6 +122,18 @@ export default function HomePage() {
     loadLatestReviews();
     loadFavorites();
   }, [city, search, category]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const errorDescription =
+      params.get("error_description") || hashParams.get("error_description");
+
+    if (errorDescription) {
+      setOauthError(decodeURIComponent(errorDescription.replace(/\+/g, " ")));
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -410,6 +423,33 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-[#F7F7F5] text-[#111111]">
+      {oauthError && (
+        <div className="fixed left-4 right-4 top-24 z-[160] mx-auto max-w-xl rounded-[22px] border border-red-100 bg-white p-4 text-[#111111] shadow-2xl">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-black text-red-500">
+                Не удалось войти через VK ID
+              </div>
+              <p className="mt-1 text-sm leading-relaxed text-[#6B6B6B]">
+                VK вернул доступ, но сервис не смог завершить авторизацию.
+                Попробуйте войти по email или напишите нам об ошибке.
+              </p>
+              <p className="mt-2 line-clamp-2 text-xs text-[#8D8D8D]">
+                {oauthError}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOauthError("")}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F7F7F5] text-lg font-black"
+              aria-label="Закрыть"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       <section className="relative overflow-hidden bg-[#F7F7F5]">
         <div className="grid min-h-[660px] lg:min-h-[620px] lg:grid-cols-[minmax(0,1fr)_390px]">
           <div className="relative overflow-hidden">
