@@ -18,6 +18,7 @@ export default function ProfilePage() {
   const [myItems, setMyItems] = useState<any[]>([]);
   const [myBookings, setMyBookings] = useState<any[]>([]);
   const [incomingBookings, setIncomingBookings] = useState<any[]>([]);
+  const [bookingProfiles, setBookingProfiles] = useState<Record<string, any>>({});
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -66,7 +67,8 @@ export default function ProfilePage() {
       .eq("renter_id", currentUser.id)
       .order("created_at", { ascending: false });
 
-    setMyBookings(bookings || []);
+    const renterBookings = bookings || [];
+    setMyBookings(renterBookings);
 
     if (ownedItems.length === 0) {
       setIncomingBookings([]);
@@ -85,7 +87,36 @@ export default function ProfilePage() {
       )
       .order("created_at", { ascending: false });
 
-    setIncomingBookings(incoming || []);
+    const ownerBookings = incoming || [];
+    setIncomingBookings(ownerBookings);
+    await loadBookingProfiles([...renterBookings, ...ownerBookings]);
+  }
+
+  async function loadBookingProfiles(bookings: any[]) {
+    const ids = Array.from(
+      new Set(
+        bookings.flatMap((booking) =>
+          [booking.renter_id, booking.items?.owner_id].filter(Boolean)
+        )
+      )
+    );
+
+    if (ids.length === 0) {
+      setBookingProfiles({});
+      return;
+    }
+
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, username, full_name, avatar, verified, phone_verified")
+      .in("id", ids);
+
+    const profileMap = (data || []).reduce((acc: Record<string, any>, profile) => {
+      acc[profile.id] = profile;
+      return acc;
+    }, {});
+
+    setBookingProfiles(profileMap);
   }
 
   async function deleteItem(id: string) {
@@ -433,6 +464,7 @@ export default function ProfilePage() {
                       <IncomingBookingRow
                         key={booking.id}
                         booking={booking}
+                        renterProfile={bookingProfiles[booking.renter_id]}
                         getBookingDays={getBookingDays}
                         getBookingTotal={getBookingTotal}
                         formatDateRange={formatDateRange}
@@ -493,6 +525,7 @@ export default function ProfilePage() {
                       <MyBookingRow
                         key={booking.id}
                         booking={booking}
+                        ownerProfile={bookingProfiles[booking.items?.owner_id]}
                         getBookingDays={getBookingDays}
                         getBookingTotal={getBookingTotal}
                         formatDateRange={formatDateRange}
@@ -512,6 +545,7 @@ export default function ProfilePage() {
                       <IncomingBookingRow
                         key={booking.id}
                         booking={booking}
+                        renterProfile={bookingProfiles[booking.renter_id]}
                         getBookingDays={getBookingDays}
                         getBookingTotal={getBookingTotal}
                         formatDateRange={formatDateRange}
@@ -735,17 +769,22 @@ function EmptyState({ text }: { text: string }) {
 
 function IncomingBookingRow({
   booking,
+  renterProfile,
   getBookingDays,
   getBookingTotal,
   formatDateRange,
   updateBookingStatus,
 }: {
   booking: any;
+  renterProfile?: any;
   getBookingDays: (booking: any) => number;
   getBookingTotal: (booking: any) => number;
   formatDateRange: (booking: any) => string;
   updateBookingStatus: (bookingId: string, status: string) => void;
 }) {
+  const renterName = renterProfile?.full_name || renterProfile?.username || "Арендатор";
+  const renterInitial = renterName[0]?.toUpperCase() || "А";
+
   return (
     <div className="grid gap-4 rounded-[20px] border border-[#7BC47F]/25 bg-[#F8FFF8] p-3 md:grid-cols-[110px_minmax(0,1fr)_160px] md:items-center">
       <img
@@ -758,6 +797,23 @@ function IncomingBookingRow({
         <h3 className="line-clamp-1 text-base font-extrabold">
           {booking.items?.name || "Объявление"}
         </h3>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-xs font-extrabold text-white">
+            {renterProfile?.avatar ? (
+              <img src={renterProfile.avatar} alt="" className="h-full w-full object-cover" />
+            ) : (
+              renterInitial
+            )}
+          </div>
+          <Link href={`/user/${booking.renter_id}`} className="font-bold text-[#3F9E47]">
+            {renterName}
+          </Link>
+          {renterProfile?.verified && (
+            <span className="rounded-full bg-[#E8F7EA] px-2 py-1 text-xs font-bold text-[#3F9E47]">
+              Проверен
+            </span>
+          )}
+        </div>
         <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[#555555]">
           <span>{formatDateRange(booking)}</span>
           <span>{getBookingDays(booking)} дн.</span>
@@ -772,6 +828,12 @@ function IncomingBookingRow({
 
       {booking.status === "pending" && (
         <div className="flex flex-col gap-2">
+          <Link
+            href={`/chat/${booking.item_id}?owner=${booking.renter_id}`}
+            className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-center text-sm font-bold transition hover:bg-[#F7F7F5]"
+          >
+            Написать
+          </Link>
           <button
             onClick={() => updateBookingStatus(booking.id, "approved")}
             className="rounded-full bg-[#7BC47F] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#69B56E]"
@@ -792,17 +854,21 @@ function IncomingBookingRow({
 
 function MyBookingRow({
   booking,
+  ownerProfile,
   getBookingDays,
   getBookingTotal,
   formatDateRange,
   handlePayment,
 }: {
   booking: any;
+  ownerProfile?: any;
   getBookingDays: (booking: any) => number;
   getBookingTotal: (booking: any) => number;
   formatDateRange: (booking: any) => string;
   handlePayment: (bookingId: string) => void;
 }) {
+  const ownerName = ownerProfile?.full_name || ownerProfile?.username || "Владелец";
+
   return (
     <div className="grid gap-4 rounded-[20px] border border-black/5 bg-white p-3 md:grid-cols-[92px_minmax(0,1fr)_140px] md:items-center">
       <img
@@ -815,6 +881,14 @@ function MyBookingRow({
         <h3 className="line-clamp-1 text-base font-extrabold">
           {booking.items?.name || "Объявление"}
         </h3>
+        {booking.items?.owner_id && (
+          <Link
+            href={`/user/${booking.items.owner_id}`}
+            className="mt-1 inline-block text-sm font-bold text-[#3F9E47]"
+          >
+            {ownerName}
+          </Link>
+        )}
         <div className="mt-2 flex flex-wrap gap-2 text-sm text-[#6B6B6B]">
           <span>{formatDateRange(booking)}</span>
           <span>{getBookingDays(booking)} дн.</span>
