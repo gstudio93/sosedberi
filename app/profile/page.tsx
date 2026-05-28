@@ -19,6 +19,7 @@ export default function ProfilePage() {
   const [myBookings, setMyBookings] = useState<any[]>([]);
   const [incomingBookings, setIncomingBookings] = useState<any[]>([]);
   const [bookingProfiles, setBookingProfiles] = useState<Record<string, any>>({});
+  const [handoverReports, setHandoverReports] = useState<any[]>([]);
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -72,6 +73,7 @@ export default function ProfilePage() {
 
     if (ownedItems.length === 0) {
       setIncomingBookings([]);
+      await Promise.all([loadBookingProfiles(renterBookings), loadHandoverReports(renterBookings)]);
       return;
     }
 
@@ -89,7 +91,30 @@ export default function ProfilePage() {
 
     const ownerBookings = incoming || [];
     setIncomingBookings(ownerBookings);
-    await loadBookingProfiles([...renterBookings, ...ownerBookings]);
+    const allBookings = [...renterBookings, ...ownerBookings];
+    await Promise.all([loadBookingProfiles(allBookings), loadHandoverReports(allBookings)]);
+  }
+
+  async function loadHandoverReports(bookings: any[]) {
+    const bookingIds = Array.from(new Set(bookings.map((booking) => booking.id).filter(Boolean)));
+
+    if (bookingIds.length === 0) {
+      setHandoverReports([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("rental_handover_reports")
+      .select("*")
+      .in("booking_id", bookingIds)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.log("HANDOVER REPORTS ERROR:", error);
+      return;
+    }
+
+    setHandoverReports(data || []);
   }
 
   async function loadBookingProfiles(bookings: any[]) {
@@ -155,6 +180,7 @@ export default function ProfilePage() {
       .from("bookings")
       .update({
         payment_status: "paid",
+        status: "handover_pending",
       })
       .eq("id", bookingId);
 
@@ -164,6 +190,7 @@ export default function ProfilePage() {
           ? {
               ...booking,
               payment_status: "paid",
+              status: "handover_pending",
             }
           : booking
       )
@@ -272,6 +299,142 @@ export default function ProfilePage() {
         },
       ]);
     }
+  }
+
+  async function uploadReportPhotos(files: File[], bookingId: string, reportType: string) {
+    const uploadedUrls: string[] = [];
+
+    for (const file of files.slice(0, 5)) {
+      if (!file.type.startsWith("image/")) continue;
+
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+      const fileName = `handover/${bookingId}/${reportType}/${crypto.randomUUID()}-${safeName}`;
+
+      const { error } = await supabase.storage.from("items").upload(fileName, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+      if (error) {
+        console.log("REPORT PHOTO ERROR:", error);
+        throw new Error("Не удалось загрузить фото акта.");
+      }
+
+      const { data } = supabase.storage.from("items").getPublicUrl(fileName);
+      uploadedUrls.push(data.publicUrl);
+    }
+
+    return uploadedUrls;
+  }
+
+  function upsertLocalReport(report: any) {
+    setHandoverReports((prev) => {
+      const exists = prev.some((item) => item.id === report.id);
+
+      if (exists) {
+        return prev.map((item) => (item.id === report.id ? report : item));
+      }
+
+      return [...prev, report];
+    });
+  }
+
+  function patchBookingState(bookingId: string, updates: Record<string, string>) {
+    setMyBookings((prev) =>
+      prev.map((booking) => (booking.id === bookingId ? { ...booking, ...updates } : booking))
+    );
+    setIncomingBookings((prev) =>
+      prev.map((booking) => (booking.id === bookingId ? { ...booking, ...updates } : booking))
+    );
+  }
+
+  async function createRentalReport(
+    booking: any,
+    reportType: "handover" | "return",
+    files: File[],
+    comment: string
+  ) {
+    if (!user) return;
+
+    if (files.length === 0) {
+      alert("Добавьте хотя бы одно фото состояния вещи.");
+      return;
+    }
+
+    const photos = await uploadReportPhotos(files, booking.id, reportType);
+    const nextStatus = reportType === "handover" ? "handover_pending" : "return_pending";
+
+    const { data, error } = await supabase
+      .from("rental_handover_reports")
+      .insert({
+        booking_id: booking.id,
+        type: reportType,
+        created_by: user.id,
+        photos,
+        comment: comment.trim(),
+        status: "pending",
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await supabase.from("bookings").update({ status: nextStatus }).eq("id", booking.id);
+    upsertLocalReport(data);
+    patchBookingState(booking.id, { status: nextStatus });
+  }
+
+  async function confirmRentalReport(booking: any, report: any) {
+    if (!user) return;
+
+    const confirmedAt = new Date().toISOString();
+    const nextStatus = report.type === "handover" ? "active" : "completed";
+    const { data, error } = await supabase
+      .from("rental_handover_reports")
+      .update({
+        status: "confirmed",
+        confirmed_by: user.id,
+        confirmed_at: confirmedAt,
+      })
+      .eq("id", report.id)
+      .select("*")
+      .single();
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await supabase.from("bookings").update({ status: nextStatus }).eq("id", booking.id);
+    upsertLocalReport(data);
+    patchBookingState(booking.id, { status: nextStatus });
+  }
+
+  async function openRentalDispute(booking: any, report?: any) {
+    const reason = prompt("Коротко опишите проблему");
+
+    if (!reason?.trim()) return;
+
+    await supabase.from("bookings").update({ status: "dispute" }).eq("id", booking.id);
+
+    if (report) {
+      const { data } = await supabase
+        .from("rental_handover_reports")
+        .update({
+          status: "disputed",
+          dispute_comment: reason.trim(),
+        })
+        .eq("id", report.id)
+        .select("*")
+        .single();
+
+      if (data) upsertLocalReport(data);
+    }
+
+    patchBookingState(booking.id, { status: "dispute" });
   }
 
   async function resendConfirmation() {
@@ -479,6 +642,11 @@ export default function ProfilePage() {
                         getBookingTotal={getBookingTotal}
                         formatDateRange={formatDateRange}
                         updateBookingStatus={updateBookingStatus}
+                        handoverReport={getRentalReport(handoverReports, booking.id, "handover")}
+                        returnReport={getRentalReport(handoverReports, booking.id, "return")}
+                        createRentalReport={createRentalReport}
+                        confirmRentalReport={confirmRentalReport}
+                        openRentalDispute={openRentalDispute}
                       />
                     ))}
                   </div>
@@ -541,6 +709,11 @@ export default function ProfilePage() {
                         formatDateRange={formatDateRange}
                         handlePayment={handlePayment}
                         updateMyBooking={updateMyBooking}
+                        handoverReport={getRentalReport(handoverReports, booking.id, "handover")}
+                        returnReport={getRentalReport(handoverReports, booking.id, "return")}
+                        createRentalReport={createRentalReport}
+                        confirmRentalReport={confirmRentalReport}
+                        openRentalDispute={openRentalDispute}
                       />
                     ))}
                   </div>
@@ -561,6 +734,11 @@ export default function ProfilePage() {
                         getBookingTotal={getBookingTotal}
                         formatDateRange={formatDateRange}
                         updateBookingStatus={updateBookingStatus}
+                        handoverReport={getRentalReport(handoverReports, booking.id, "handover")}
+                        returnReport={getRentalReport(handoverReports, booking.id, "return")}
+                        createRentalReport={createRentalReport}
+                        confirmRentalReport={confirmRentalReport}
+                        openRentalDispute={openRentalDispute}
                       />
                     ))}
                   </div>
@@ -785,6 +963,11 @@ function IncomingBookingRow({
   getBookingTotal,
   formatDateRange,
   updateBookingStatus,
+  handoverReport,
+  returnReport,
+  createRentalReport,
+  confirmRentalReport,
+  openRentalDispute,
 }: {
   booking: any;
   renterProfile?: any;
@@ -792,6 +975,11 @@ function IncomingBookingRow({
   getBookingTotal: (booking: any) => number;
   formatDateRange: (booking: any) => string;
   updateBookingStatus: (bookingId: string, status: string) => void;
+  handoverReport?: any;
+  returnReport?: any;
+  createRentalReport: (booking: any, reportType: "handover" | "return", files: File[], comment: string) => void;
+  confirmRentalReport: (booking: any, report: any) => void;
+  openRentalDispute: (booking: any, report?: any) => void;
 }) {
   const renterName = renterProfile?.full_name || renterProfile?.username || "Арендатор";
   const renterInitial = renterName[0]?.toUpperCase() || "А";
@@ -861,21 +1049,30 @@ function IncomingBookingRow({
           </button>
         </>
       )}
-      {booking.status === "approved" && booking.payment_status === "paid" && (
-        <button
-          onClick={() => updateBookingStatus(booking.id, "active")}
-          className="rounded-full bg-[#7BC47F] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#69B56E]"
-        >
-          Начать аренду
-        </button>
+      {["approved", "handover_pending"].includes(booking.status) && booking.payment_status === "paid" && !handoverReport && (
+        <ReportForm
+          buttonLabel="Передал вещь"
+          placeholder="Комплектация, состояние, заметные дефекты"
+          onSubmit={(files, comment) => createRentalReport(booking, "handover", files, comment)}
+        />
       )}
-      {booking.status === "active" && (
-        <button
-          onClick={() => updateBookingStatus(booking.id, "completed")}
-          className="rounded-full bg-[#111111] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#2A2A2A]"
-        >
-          Завершить
-        </button>
+      {handoverReport && booking.status === "handover_pending" && (
+        <ReportSummary
+          title="Акт передачи отправлен"
+          report={handoverReport}
+          hint="Ждем подтверждение арендатора."
+          onDispute={() => openRentalDispute(booking, handoverReport)}
+        />
+      )}
+      {returnReport && booking.status === "return_pending" && (
+        <ReportSummary
+          title="Арендатор вернул вещь"
+          report={returnReport}
+          hint="Проверьте состояние и подтвердите возврат."
+          confirmLabel="Принять возврат"
+          onConfirm={() => confirmRentalReport(booking, returnReport)}
+          onDispute={() => openRentalDispute(booking, returnReport)}
+        />
       )}
       </div>
     </div>
@@ -890,6 +1087,11 @@ function MyBookingRow({
   formatDateRange,
   handlePayment,
   updateMyBooking,
+  handoverReport,
+  returnReport,
+  createRentalReport,
+  confirmRentalReport,
+  openRentalDispute,
 }: {
   booking: any;
   ownerProfile?: any;
@@ -898,6 +1100,11 @@ function MyBookingRow({
   formatDateRange: (booking: any) => string;
   handlePayment: (bookingId: string) => void;
   updateMyBooking: (bookingId: string, updates: Record<string, string>) => void;
+  handoverReport?: any;
+  returnReport?: any;
+  createRentalReport: (booking: any, reportType: "handover" | "return", files: File[], comment: string) => void;
+  confirmRentalReport: (booking: any, report: any) => void;
+  openRentalDispute: (booking: any, report?: any) => void;
 }) {
   const ownerName = ownerProfile?.full_name || ownerProfile?.username || "Владелец";
   const statusText = getBookingStatusText(booking.status, booking.payment_status);
@@ -949,6 +1156,31 @@ function MyBookingRow({
           Отменить
         </button>
       )}
+      {handoverReport && booking.status === "handover_pending" && (
+        <ReportSummary
+          title="Владелец передал вещь"
+          report={handoverReport}
+          hint="Проверьте фото и подтвердите получение."
+          confirmLabel="Принял вещь"
+          onConfirm={() => confirmRentalReport(booking, handoverReport)}
+          onDispute={() => openRentalDispute(booking, handoverReport)}
+        />
+      )}
+      {booking.status === "active" && !returnReport && (
+        <ReportForm
+          buttonLabel="Вернул вещь"
+          placeholder="Состояние при возврате, комплектация"
+          onSubmit={(files, comment) => createRentalReport(booking, "return", files, comment)}
+        />
+      )}
+      {returnReport && booking.status === "return_pending" && (
+        <ReportSummary
+          title="Акт возврата отправлен"
+          report={returnReport}
+          hint="Ждем подтверждение владельца."
+          onDispute={() => openRentalDispute(booking, returnReport)}
+        />
+      )}
       {booking.status === "completed" && (
         <Link
           href={`/item/${booking.item_id}`}
@@ -965,12 +1197,125 @@ function MyBookingRow({
 function getBookingStatusText(status: string, paymentStatus?: string) {
   if (status === "pending") return "Ожидает подтверждения";
   if (status === "approved" && paymentStatus !== "paid") return "Подтверждена, ожидает оплату";
-  if (status === "approved" && paymentStatus === "paid") return "Оплачена, ждет начала";
+  if (status === "approved" && paymentStatus === "paid") return "Оплачена, ждет передачу";
+  if (status === "handover_pending") return "Ожидает подтверждение передачи";
   if (status === "active") return "Аренда активна";
+  if (status === "return_pending") return "Ожидает подтверждение возврата";
   if (status === "completed") return "Завершена";
+  if (status === "dispute") return "Открыт спор";
   if (status === "rejected") return "Отклонена";
   if (status === "cancelled") return "Отменена";
   return status;
+}
+
+function getRentalReport(reports: any[], bookingId: string, type: "handover" | "return") {
+  return reports.find((report) => report.booking_id === bookingId && report.type === type);
+}
+
+function ReportForm({
+  buttonLabel,
+  placeholder,
+  onSubmit,
+}: {
+  buttonLabel: string;
+  placeholder: string;
+  onSubmit: (files: File[], comment: string) => void;
+}) {
+  const [files, setFiles] = useState<File[]>([]);
+  const [comment, setComment] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submit() {
+    setSaving(true);
+    await onSubmit(files, comment);
+    setSaving(false);
+    setFiles([]);
+    setComment("");
+  }
+
+  return (
+    <div className="rounded-2xl border border-black/5 bg-white p-3">
+      <label className="block text-xs font-bold text-[#6B6B6B]">
+        Фото состояния
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={(event) => setFiles(Array.from(event.target.files || []).slice(0, 5))}
+          className="mt-2 w-full text-xs"
+        />
+      </label>
+      <textarea
+        value={comment}
+        onChange={(event) => setComment(event.target.value)}
+        placeholder={placeholder}
+        className="mt-2 min-h-20 w-full rounded-2xl bg-[#F7F7F5] p-3 text-xs outline-none"
+      />
+      <button
+        type="button"
+        onClick={submit}
+        disabled={saving || files.length === 0}
+        className="mt-2 w-full rounded-full bg-[#7BC47F] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+      >
+        {saving ? "Сохраняем..." : buttonLabel}
+      </button>
+    </div>
+  );
+}
+
+function ReportSummary({
+  title,
+  report,
+  hint,
+  confirmLabel,
+  onConfirm,
+  onDispute,
+}: {
+  title: string;
+  report: any;
+  hint: string;
+  confirmLabel?: string;
+  onConfirm?: () => void;
+  onDispute: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-black/5 bg-white p-3 text-xs">
+      <div className="font-extrabold">{title}</div>
+      <div className="mt-1 text-[#6B6B6B]">{hint}</div>
+      {report.comment && (
+        <div className="mt-2 rounded-xl bg-[#F7F7F5] p-2 text-[#555555]">
+          {report.comment}
+        </div>
+      )}
+      {report.photos?.length > 0 && (
+        <div className="mt-2 flex gap-2 overflow-x-auto">
+          {report.photos.map((photo: string) => (
+            <a key={photo} href={photo} target="_blank" className="shrink-0">
+              <img src={photo} alt="" className="h-14 w-14 rounded-xl object-cover" />
+            </a>
+          ))}
+        </div>
+      )}
+      <div className="mt-3 flex flex-col gap-2">
+        {confirmLabel && onConfirm && (
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-full bg-[#7BC47F] px-4 py-2.5 text-sm font-bold text-white"
+          >
+            {confirmLabel}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onDispute}
+          className="rounded-full border border-red-100 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600"
+        >
+          Открыть спор
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function MiniItemCard({ item }: { item: any }) {

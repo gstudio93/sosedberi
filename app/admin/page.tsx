@@ -199,7 +199,7 @@ export default function AdminPage() {
 
   const paidBookings = bookings.filter((booking) => booking.payment_status === "paid");
   const activeBookings = bookings.filter((booking) =>
-    ["pending", "approved", "active"].includes(booking.status)
+    ["pending", "approved", "handover_pending", "active", "return_pending", "dispute"].includes(booking.status)
   );
   const pendingUsers = users.filter((user) => !user.verified || !user.phone_verified);
   const moderationQueue = items.filter(
@@ -565,9 +565,12 @@ function StatusBadge({ status }: { status: string }) {
     pending: "Ожидает",
     approved: "Одобрена",
     rejected: "Отклонена",
+    handover_pending: "Передача",
     active: "Активна",
+    return_pending: "Возврат",
     completed: "Завершена",
     cancelled: "Отменена",
+    dispute: "Спор",
   };
 
   return (

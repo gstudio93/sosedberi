@@ -11,7 +11,7 @@ begin
   end;
 
   begin
-    create type public.booking_status as enum ('pending', 'approved', 'rejected', 'active', 'completed', 'cancelled');
+    create type public.booking_status as enum ('pending', 'approved', 'rejected', 'handover_pending', 'active', 'return_pending', 'completed', 'cancelled', 'dispute');
   exception when duplicate_object then null;
   end;
 
@@ -117,6 +117,21 @@ create table if not exists public.reviews (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.rental_handover_reports (
+  id uuid primary key default gen_random_uuid(),
+  booking_id uuid not null references public.bookings(id) on delete cascade,
+  type text not null check (type in ('handover', 'return')),
+  created_by uuid not null references auth.users(id) on delete cascade,
+  confirmed_by uuid references auth.users(id) on delete set null,
+  photos text[] not null default '{}',
+  comment text,
+  status text not null default 'pending' check (status in ('pending', 'confirmed', 'disputed')),
+  dispute_comment text,
+  created_at timestamptz not null default now(),
+  confirmed_at timestamptz,
+  unique (booking_id, type)
+);
+
 create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -192,6 +207,17 @@ alter table public.bookings add column if not exists deposit_amount numeric(12, 
 alter table public.bookings add column if not exists created_at timestamptz not null default now();
 alter table public.bookings add column if not exists updated_at timestamptz not null default now();
 
+alter table public.rental_handover_reports add column if not exists booking_id uuid references public.bookings(id) on delete cascade;
+alter table public.rental_handover_reports add column if not exists type text;
+alter table public.rental_handover_reports add column if not exists created_by uuid references auth.users(id) on delete cascade;
+alter table public.rental_handover_reports add column if not exists confirmed_by uuid references auth.users(id) on delete set null;
+alter table public.rental_handover_reports add column if not exists photos text[] not null default '{}';
+alter table public.rental_handover_reports add column if not exists comment text;
+alter table public.rental_handover_reports add column if not exists status text not null default 'pending';
+alter table public.rental_handover_reports add column if not exists dispute_comment text;
+alter table public.rental_handover_reports add column if not exists created_at timestamptz not null default now();
+alter table public.rental_handover_reports add column if not exists confirmed_at timestamptz;
+
 alter table public.reviews add column if not exists item_id uuid references public.items(id) on delete cascade;
 alter table public.reviews add column if not exists owner_id uuid references auth.users(id) on delete cascade;
 alter table public.reviews add column if not exists author_id uuid references auth.users(id) on delete cascade;
@@ -218,6 +244,7 @@ create index if not exists messages_conversation_id_created_at_idx on public.mes
 create index if not exists messages_receiver_id_is_read_idx on public.messages(receiver_id, is_read);
 create index if not exists bookings_item_id_dates_idx on public.bookings(item_id, start_date, end_date);
 create index if not exists bookings_renter_id_idx on public.bookings(renter_id);
+create index if not exists rental_handover_reports_booking_id_idx on public.rental_handover_reports(booking_id);
 create index if not exists notifications_user_id_created_at_idx on public.notifications(user_id, created_at desc);
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -239,6 +266,7 @@ alter table public.favorites enable row level security;
 alter table public.conversations enable row level security;
 alter table public.messages enable row level security;
 alter table public.bookings enable row level security;
+alter table public.rental_handover_reports enable row level security;
 alter table public.reviews enable row level security;
 alter table public.notifications enable row level security;
 
@@ -293,6 +321,34 @@ create policy "Booking participants update" on public.bookings for update using 
   renter_id = auth.uid() or exists (
     select 1 from public.items i
     where i.id = item_id and i.owner_id = auth.uid()
+  )
+);
+
+create policy "Booking participants read handover reports" on public.rental_handover_reports for select using (
+  exists (
+    select 1 from public.bookings b
+    join public.items i on i.id = b.item_id
+    where b.id = booking_id and (b.renter_id = auth.uid() or i.owner_id = auth.uid())
+  )
+);
+create policy "Booking participants create handover reports" on public.rental_handover_reports for insert with check (
+  created_by = auth.uid() and exists (
+    select 1 from public.bookings b
+    join public.items i on i.id = b.item_id
+    where b.id = booking_id and (b.renter_id = auth.uid() or i.owner_id = auth.uid())
+  )
+);
+create policy "Booking participants update handover reports" on public.rental_handover_reports for update using (
+  exists (
+    select 1 from public.bookings b
+    join public.items i on i.id = b.item_id
+    where b.id = booking_id and (b.renter_id = auth.uid() or i.owner_id = auth.uid())
+  )
+) with check (
+  exists (
+    select 1 from public.bookings b
+    join public.items i on i.id = b.item_id
+    where b.id = booking_id and (b.renter_id = auth.uid() or i.owner_id = auth.uid())
   )
 );
 
