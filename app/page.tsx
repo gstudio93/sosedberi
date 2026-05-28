@@ -1,80 +1,144 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
-import { CITIES } from "@/lib/cities";
-import { CATEGORIES } from "@/lib/categories";
+import { useEffect, useMemo, useState } from "react";
 import { YMaps, Map } from "@pbe/react-yandex-maps";
+import { CATEGORIES } from "@/lib/categories";
+import { supabase } from "../lib/supabase";
+
+type Item = {
+  id: string;
+  name: string;
+  price: number;
+  location?: string | null;
+  image?: string | null;
+  owner_avatar?: string | null;
+  category?: string | null;
+};
+
+type Review = {
+  id: string;
+  rating: number;
+  text: string;
+  created_at: string;
+  items?: {
+    id: string;
+    name: string;
+  } | null;
+  profiles?: {
+    full_name: string | null;
+  } | null;
+};
+
+const quickCategories = [
+  "Инструменты",
+  "Техника",
+  "Для дома",
+  "Для отдыха",
+  "Спорт",
+  "Транспорт",
+  "Фото и видео",
+  "Сад и дача",
+  "Другое",
+];
+
+const benefitCards = [
+  {
+    icon: "✓",
+    title: "Проверенные пользователи",
+    text: "Профили, телефон и история сделок помогают выбрать надежного владельца.",
+  },
+  {
+    icon: "₽",
+    title: "Дешевле покупки",
+    text: "Берите вещь на пару дней и не храните дома то, что нужно редко.",
+  },
+  {
+    icon: "⌖",
+    title: "Рядом с вами",
+    text: "Поиск по городу и адресу помогает найти вещь поблизости.",
+  },
+  {
+    icon: "↔",
+    title: "Гибкие сроки",
+    text: "Выбирайте удобные даты и договаривайтесь с владельцем в чате.",
+  },
+  {
+    icon: "●",
+    title: "Больше пользы вещам",
+    text: "То, что простаивает у одного человека, работает для другого.",
+  },
+  {
+    icon: "★",
+    title: "Отзывы после аренды",
+    text: "Рейтинг и отзывы постепенно делают сервис прозрачнее.",
+  },
+];
 
 export default function HomePage() {
-  const [items, setItems] = useState<any[]>([]);
-  const [latestReviews, setLatestReviews] = useState<any[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [latestReviews, setLatestReviews] = useState<Review[]>([]);
   const [search, setSearch] = useState("");
   const [city, setCity] = useState("");
   const [mapCenter, setMapCenter] = useState<[number, number]>([
-  45.0355,
-  38.9753,
-]);
+    45.0355,
+    38.9753,
+  ]);
   const [category, setCategory] = useState("");
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [dateModalOpen, setDateModalOpen] = useState(false);
-const [startDate, setStartDate] = useState("");
-const [endDate, setEndDate] = useState("");
-  const [currentCity, setCurrentCity] = useState("Определяем...");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [currentCity, setCurrentCity] = useState("Ваш город");
   const [locationModalOpen, setLocationModalOpen] = useState(false);
+
+  const visibleCategories = useMemo(
+    () => quickCategories.filter((cat) => CATEGORIES.includes(cat)),
+    []
+  );
 
   useEffect(() => {
     loadItems(city, search, category);
     loadLatestReviews();
     loadFavorites();
   }, [city, search, category]);
-useEffect(() => {
-  navigator.geolocation.getCurrentPosition(
-    async (position) => {
-      try {
-        const { latitude, longitude } = position.coords;
 
-        const response = await fetch(
-          `https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY}&format=json&geocode=${longitude},${latitude}`
-        );
+  useEffect(() => {
+    if (!navigator.geolocation) return;
 
-        const data = await response.json();
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
 
-        const geoObject =
-          data.response.GeoObjectCollection.featureMember[0];
+          const response = await fetch(
+            `https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY}&format=json&geocode=${longitude},${latitude}`
+          );
+          const data = await response.json();
+          const geoObject = data.response.GeoObjectCollection.featureMember[0];
+          const components =
+            geoObject.GeoObject.metaDataProperty.GeocoderMetaData.Address
+              .Components;
+          const cityComponent = components.find(
+            (component: any) => component.kind === "locality"
+          );
+          const countryComponent = components.find(
+            (component: any) => component.kind === "country"
+          );
 
-        const addressDetails =
-  geoObject.GeoObject.metaDataProperty
-    .GeocoderMetaData.Address.Components;
+          if (countryComponent?.name === "Россия" && cityComponent?.name) {
+            setCurrentCity(cityComponent.name);
+          } else {
+            setCurrentCity("Россия");
+          }
+        } catch (error) {
+          console.log(error);
+          setCurrentCity("Ваш город");
+        }
+      },
+      () => setCurrentCity("Ваш город")
+    );
+  }, []);
 
-const cityComponent = addressDetails.find(
-  (component: any) =>
-    component.kind === "locality"
-);
-
-const countryComponent = addressDetails.find(
-  (component: any) =>
-    component.kind === "country"
-);
-
-if (
-  countryComponent?.name === "Россия" &&
-  cityComponent?.name
-) {
-  setCurrentCity(cityComponent.name);
-} else {
-  setCurrentCity("Россия");
-}
-      } catch (e) {
-        console.log(e);
-        setCurrentCity("Ваш город");
-      }
-    },
-    () => {
-      setCurrentCity("Ваш город");
-    }
-  );
-}, []);
   async function loadItems(
     selectedCity?: string,
     searchQuery?: string,
@@ -85,17 +149,9 @@ if (
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (selectedCity) {
-      query = query.eq("location", selectedCity);
-    }
-
-    if (searchQuery) {
-      query = query.ilike("name", `%${searchQuery}%`);
-    }
-
-    if (selectedCategory) {
-      query = query.eq("category", selectedCategory);
-    }
+    if (selectedCity) query = query.eq("location", selectedCity);
+    if (searchQuery) query = query.ilike("name", `%${searchQuery}%`);
+    if (selectedCategory) query = query.eq("category", selectedCategory);
 
     const { data, error } = await query;
 
@@ -110,7 +166,8 @@ if (
   async function loadLatestReviews() {
     const { data } = await supabase
       .from("reviews")
-      .select(`
+      .select(
+        `
         *,
         items (
           id,
@@ -119,323 +176,299 @@ if (
         profiles:author_id (
           full_name
         )
-      `)
-      .order("created_at", {
-        ascending: false,
-      })
+      `
+      )
+      .order("created_at", { ascending: false })
       .limit(4);
 
     setLatestReviews(data || []);
   }
-async function selectMapLocation() {
-  try {
-    const response = await fetch(
-      `https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY}&format=json&geocode=${mapCenter[1]},${mapCenter[0]}`
-    );
 
-    const data = await response.json();
+  async function loadFavorites() {
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth.user;
 
-    const geoObject =
-      data.response.GeoObjectCollection.featureMember[0];
+    if (!user) return;
 
-    const components =
-      geoObject.GeoObject.metaDataProperty.GeocoderMetaData.Address.Components;
+    const { data } = await supabase
+      .from("favorites")
+      .select("item_id")
+      .eq("user_id", user.id);
 
-    const country = components.find(
-      (c: any) => c.kind === "country"
-    );
+    setFavoriteIds((data || []).map((favorite) => favorite.item_id));
+  }
 
-    const city = components.find(
-  (c: any) =>
-    c.kind === "locality"
-);
+  async function toggleFavorite(itemId: string) {
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth.user;
 
-    if (
-  country?.name === "Россия" &&
-  city?.name
-){
-      setCurrentCity(city.name);
-      setCity(city.name);
-    } else {
-      setCurrentCity("Россия");
-      setCity("");
+    if (!user) {
+      alert("Войдите в аккаунт");
+      return;
     }
 
-    setLocationModalOpen(false);
-  } catch (error) {
-    console.log(error);
-    setCurrentCity("Ваш город");
-    setLocationModalOpen(false);
-  }
-}
-async function loadFavorites() {
-  const { data: auth } = await supabase.auth.getUser();
-  const user = auth.user;
+    const isFavorite = favoriteIds.includes(itemId);
 
-  if (!user) return;
+    if (isFavorite) {
+      await supabase
+        .from("favorites")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("item_id", itemId);
 
-  const { data } = await supabase
-    .from("favorites")
-    .select("item_id")
-    .eq("user_id", user.id);
+      setFavoriteIds((prev) => prev.filter((id) => id !== itemId));
+    } else {
+      await supabase.from("favorites").insert([
+        {
+          user_id: user.id,
+          item_id: itemId,
+        },
+      ]);
 
-  setFavoriteIds((data || []).map((f) => f.item_id));
-}
-
-async function toggleFavorite(itemId: string) {
-  const { data: auth } = await supabase.auth.getUser();
-  const user = auth.user;
-
-  if (!user) {
-    alert("Войдите в аккаунт");
-    return;
+      setFavoriteIds((prev) => [...prev, itemId]);
+    }
   }
 
-  const isFav = favoriteIds.includes(itemId);
+  async function selectMapLocation() {
+    try {
+      const response = await fetch(
+        `https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY}&format=json&geocode=${mapCenter[1]},${mapCenter[0]}`
+      );
+      const data = await response.json();
+      const geoObject = data.response.GeoObjectCollection.featureMember[0];
+      const components =
+        geoObject.GeoObject.metaDataProperty.GeocoderMetaData.Address
+          .Components;
+      const country = components.find((component: any) => component.kind === "country");
+      const selectedCity = components.find(
+        (component: any) => component.kind === "locality"
+      );
 
-  if (isFav) {
-    await supabase
-      .from("favorites")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("item_id", itemId);
+      if (country?.name === "Россия" && selectedCity?.name) {
+        setCurrentCity(selectedCity.name);
+        setCity(selectedCity.name);
+      } else {
+        setCurrentCity("Россия");
+        setCity("");
+      }
 
-    setFavoriteIds((prev) => prev.filter((id) => id !== itemId));
-  } else {
-    await supabase.from("favorites").insert([
-      {
-        user_id: user.id,
-        item_id: itemId,
-      },
-    ]);
-
-    setFavoriteIds((prev) => [...prev, itemId]);
+      setLocationModalOpen(false);
+    } catch (error) {
+      console.log(error);
+      setCurrentCity("Ваш город");
+      setLocationModalOpen(false);
+    }
   }
-}
+
+  function submitSearch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    loadItems(city, search, category);
+  }
+
   return (
     <main className="min-h-screen bg-[#F7F7F5] text-[#111111]">
-     {/* HERO */}
-<section className="relative overflow-hidden">
-  <div className="grid min-h-[700px] lg:min-h-[560px] lg:grid-cols-[minmax(0,1fr)_380px]">
-    <div className="relative overflow-hidden">
-      <img
-        src="/hero.jpg"
-        className="absolute inset-0 h-full w-full object-cover"
-        alt="Hero"
-      />
-
-      <div className="absolute inset-0 bg-white/10" />
-
-      <div className="relative z-10 flex h-full flex-col justify-center px-6 pb-20 pt-28 lg:px-20 lg:pt-32">
-        <div className="max-w-3xl">
-          <h1 className="text-5xl font-extrabold leading-[0.95] text-[#111111] sm:text-6xl lg:text-[64px]">
-            Не покупай —
-            <br />
-            бери в аренду
-          </h1>
-
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-[#111111]/75 lg:text-lg">
-            Бери вещи рядом и в удобное время
-          </p>
-        </div>
-
-        <div className="mt-8 w-full max-w-3xl rounded-[28px] bg-white p-2.5 shadow-lg lg:rounded-full">
-          <div className="flex items-center gap-2">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Что вы хотите взять в аренду?"
-              className="min-w-0 flex-1 bg-transparent px-5 py-3.5 text-base text-[#111111] outline-none placeholder:text-[#8D8D8D]"
+      <section className="relative overflow-hidden bg-[#F7F7F5]">
+        <div className="grid min-h-[720px] lg:min-h-[620px] lg:grid-cols-[minmax(0,1fr)_390px]">
+          <div className="relative overflow-hidden">
+            <img
+              src="/hero.jpg"
+              className="absolute inset-0 h-full w-full object-cover"
+              alt="Отдых у озера"
             />
+            <div className="absolute inset-0 bg-gradient-to-r from-white/92 via-white/45 to-white/5" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#F7F7F5] via-transparent to-transparent" />
 
-            <button className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#7BC47F] text-sm font-bold text-[#111111] transition hover:bg-[#69B56E] lg:h-auto lg:w-auto lg:px-8 lg:py-3.5">
-  <span className="lg:hidden">🔍</span>
-  <span className="hidden lg:inline">Найти</span>
-</button>
+            <div className="relative z-10 flex h-full flex-col justify-center px-6 pb-20 pt-32 sm:px-10 lg:px-20">
+              <div className="max-w-4xl">
+                <p className="mb-5 inline-flex rounded-full bg-white/85 px-4 py-2 text-sm font-bold shadow-sm">
+                  Аренда вещей у людей рядом
+                </p>
+                <h1 className="max-w-3xl text-5xl font-black leading-[0.92] tracking-[-0.02em] sm:text-6xl lg:text-[76px]">
+                  Не покупай —
+                  <br />
+                  бери в аренду
+                </h1>
+                <p className="mt-6 max-w-xl text-lg leading-relaxed text-[#3F3F3F]">
+                  Инструменты, технику, товары для отдыха и дома можно взять на
+                  пару дней у соседей.
+                </p>
+              </div>
+
+              <form
+                onSubmit={submitSearch}
+                className="mt-8 w-full max-w-3xl rounded-[30px] bg-white p-2.5 shadow-xl shadow-black/10 lg:rounded-full"
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Что хотите взять в аренду?"
+                    className="min-w-0 flex-1 bg-transparent px-5 py-4 text-base outline-none placeholder:text-[#8D8D8D]"
+                  />
+                  <button className="rounded-full bg-[#7BC47F] px-8 py-4 text-base font-black transition hover:bg-[#69B56E]">
+                    Найти
+                  </button>
+                </div>
+              </form>
+
+              <div className="mt-5 flex flex-wrap items-center gap-3 text-sm font-bold">
+                <button
+                  type="button"
+                  onClick={() => setLocationModalOpen(true)}
+                  className="rounded-full bg-white/85 px-4 py-2 shadow-sm transition hover:bg-white"
+                >
+                  ⌖ {currentCity}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDateModalOpen(true)}
+                  className="rounded-full bg-white/85 px-4 py-2 shadow-sm transition hover:bg-white"
+                >
+                  ▣{" "}
+                  {startDate && endDate
+                    ? `${startDate} — ${endDate}`
+                    : "Выбор даты"}
+                </button>
+              </div>
+
+              <div className="mt-8 -mx-6 overflow-x-auto px-6 lg:hidden">
+                <div className="flex gap-3 pb-2">
+                  {visibleCategories.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setCategory(cat)}
+                      className={`min-w-fit rounded-full border px-5 py-3 text-sm font-bold transition ${
+                        category === cat
+                          ? "border-[#7BC47F] bg-[#7BC47F]"
+                          : "border-black/10 bg-white/90"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
+
+          <aside className="hidden bg-white px-9 pb-14 pt-32 lg:block">
+            <h2 className="text-2xl font-black leading-tight">
+              Выберите популярную категорию
+            </h2>
+
+            <div className="mt-8 flex rounded-full bg-[#F3F3F0] p-1.5">
+              <button
+                onClick={() => setCategory("")}
+                className={`flex-1 rounded-full px-5 py-3 text-sm font-black transition ${
+                  !category ? "bg-[#7BC47F]" : "text-[#6B6B6B]"
+                }`}
+              >
+                Все
+              </button>
+              <button
+                onClick={() => setCategory("Техника")}
+                className={`flex-1 rounded-full px-5 py-3 text-sm font-black transition ${
+                  category === "Техника" ? "bg-[#7BC47F]" : "text-[#6B6B6B]"
+                }`}
+              >
+                Техника
+              </button>
+            </div>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              {visibleCategories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setCategory(cat)}
+                  className={`rounded-full border px-4 py-2.5 text-sm font-bold transition ${
+                    category === cat
+                      ? "border-[#7BC47F] bg-[#F1FAF2] text-[#29933D]"
+                      : "border-[#DADAD5] bg-white hover:border-[#7BC47F]"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setCategory("")}
+              className="mt-10 rounded-full bg-[#7BC47F] px-7 py-4 text-sm font-black transition hover:bg-[#69B56E]"
+            >
+              Открыть все категории
+            </button>
+          </aside>
         </div>
+      </section>
 
-        <div className="mt-5 flex flex-wrap items-center gap-4 text-sm font-bold text-[#111111] lg:gap-6">
-        {/* MOBILE CATEGORIES */}
-<div className="mt-8 -mx-6 overflow-x-auto px-6 lg:hidden">
-  <div className="flex gap-3 pb-2">
-    {CATEGORIES.slice(0, 8).map((cat, index) => {
-      const icons = ["📷", "🔨", "🚲", "🎮", "🏕", "🎧", "⚽", "🧰"];
-
-      return (
-        <button
-          key={cat}
-          onClick={() => setCategory(cat)}
-          className={`flex min-w-[128px] flex-col items-start rounded-[28px] p-4 text-left shadow-sm transition ${
-            category === cat
-              ? "bg-[#7BC47F] text-[#111111]"
-              : "bg-white/95 text-[#111111]"
-          }`}
-        >
-          <span className="text-2xl">
-            {icons[index % icons.length]}
-          </span>
-
-          <span className="mt-3 line-clamp-1 text-sm font-bold">
-            {cat}
-          </span>
-        </button>
-      );
-    })}
-  </div>
-</div>
-          <button
-  type="button"
-  onClick={() => setLocationModalOpen(true)}
-  className="flex items-center gap-2 transition hover:opacity-70"
->
-  <span>⌖</span>
-  <span>{currentCity}</span>
-</button>
-
-          <button
-  type="button"
-  onClick={() => setDateModalOpen(true)}
-  className="flex items-center gap-2 transition hover:opacity-70"
->
-  <span>▣</span>
-  <span>
-    {startDate && endDate
-      ? `${startDate} — ${endDate}`
-      : "Выбор даты"}
-  </span>
-</button>
-
-        </div>
-      </div>
-    </div>
-
-    <div className="hidden border-l border-black/5 bg-white px-9 py-24 lg:block">
-      <h2 className="text-xl font-extrabold leading-tight">
-        Выберите популярную категорию
-      </h2>
-
-      <div className="mt-8 flex rounded-full bg-[#F3F3F0] p-1.5">
-        <button className="flex-1 rounded-full bg-[#7BC47F] px-5 py-3 text-sm font-bold text-[#111111]">
-          Все
-        </button>
-
-        <button className="flex-1 rounded-full px-5 py-3 text-sm font-bold text-[#6B6B6B]">
-          Техника
-        </button>
-      </div>
-
-      <div className="mt-8 flex flex-wrap gap-3">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setCategory(cat)}
-            className="rounded-full border border-[#DADAD5] bg-white px-4 py-2.5 text-sm font-medium text-[#111111] transition hover:border-[#7BC47F] hover:bg-[#F1FAF2]"
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      <button
-        onClick={() => setCategory("")}
-        className="mt-10 rounded-full bg-[#7BC47F] px-7 py-4 text-sm font-bold text-[#111111] transition hover:bg-[#69B56E]"
-      >
-        Открыть все категории
-      </button>
-    </div>
-  </div>
-</section>
-      {/* RECENTLY ACTIVE */}
-      <section className="mx-auto max-w-7xl px-6 py-12 lg:py-16">
-        <div className="mb-8 flex items-end justify-between">
+      <section className="mx-auto max-w-7xl px-6 py-14 lg:py-16">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-extrabold lg:text-[28px]">
-              Недавно арендованные товары
+            <p className="text-sm font-bold uppercase text-[#7BC47F]">
+              Активные объявления
+            </p>
+            <h2 className="mt-2 text-3xl font-black tracking-[-0.01em] lg:text-[34px]">
+              Недавно добавленные вещи
             </h2>
           </div>
+          <a
+            href="/catalog"
+            className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-black transition hover:border-[#7BC47F]"
+          >
+            Смотреть каталог
+          </a>
         </div>
 
-        <div className="grid gap-x-7 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
           {items.slice(0, 6).map((item) => (
-            <a
-              key={item.id}
-              href={`/item/${item.id}`}
-              className="group block"
-            >
-              <div>
-                <div className="relative overflow-hidden rounded-[26px] bg-white shadow-sm transition duration-300 group-hover:-translate-y-0.5 group-hover:shadow-md group-active:scale-[0.98]">
+            <a key={item.id} href={`/item/${item.id}`} className="group block">
+              <div className="relative overflow-hidden rounded-[22px] bg-white shadow-sm transition duration-300 group-hover:-translate-y-1 group-hover:shadow-xl">
+                <div className="relative h-[235px] overflow-hidden bg-[#EFEFEB]">
                   {item.image ? (
-  <>
-    <img
-      src={item.image}
-      alt={item.name}
-      className="h-[210px] w-full object-cover transition duration-500 group-hover:scale-105 lg:h-[220px]"
-    />
-
-    <button
-  type="button"
-  onClick={(e) => {
-    e.preventDefault();
-    toggleFavorite(item.id);
-  }}
-  className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-lg shadow-sm transition hover:scale-105"
->
-  {favoriteIds.includes(item.id) ? "♥" : "♡"}
-</button>
-  </>
-) : (
-  <div className="flex h-[225px] items-center justify-center text-5xl">
-    📦
-  </div>
-)}
-
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-
-                  <div className="absolute bottom-4 left-4 flex items-center gap-1 text-xs font-bold text-white">
-                    <span>⭐</span>
-                    <span>⭐</span>
-                    <span>⭐</span>
-                    <span>⭐</span>
-                    <span>⭐</span>
-
-                    <span className="ml-2 text-white/70">
-                      5.0
-                    </span>
-                  </div>
-
-                  <div className="absolute bottom-4 right-4">
                     <img
-                      src={
-                        item.owner_avatar ||
-                        "https://i.pravatar.cc/100"
-                      }
-                      className="h-11 w-11 rounded-full border-[3px] border-white object-cover lg:h-12 lg:w-12"
-                      alt="Арендодатель"
+                      src={item.image}
+                      alt={item.name}
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                     />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-5xl">
+                      📦
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent" />
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      toggleFavorite(item.id);
+                    }}
+                    className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-white text-lg shadow-sm transition hover:scale-105"
+                  >
+                    {favoriteIds.includes(item.id) ? "♥" : "♡"}
+                  </button>
+                  <div className="absolute bottom-4 left-4 flex items-center gap-1 text-xs font-black text-[#FFD746]">
+                    ★★★★★ <span className="ml-2 text-white">5.0</span>
                   </div>
+                  <img
+                    src={item.owner_avatar || "https://i.pravatar.cc/100"}
+                    className="absolute bottom-3 right-4 h-12 w-12 rounded-full border-[3px] border-white object-cover"
+                    alt="Владелец"
+                  />
                 </div>
 
-                <div className="px-2 pb-2 pt-3.5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <h3 className="line-clamp-1 text-base font-extrabold">
-                        {item.name}
-                      </h3>
-
-                      <p className="mt-1 line-clamp-2 text-sm leading-snug text-[#6B6B6B]">
-                        {item.location}
-                      </p>
-                    </div>
-
-                    <div className="shrink-0 text-right">
-                      <div className="text-lg font-extrabold">
-                        {item.price} ₽
-                      </div>
-
-                      <div className="text-xs font-medium uppercase text-[#8D8D8D]">
-  / день
-</div>
+                <div className="flex items-start justify-between gap-4 p-4">
+                  <div className="min-w-0">
+                    <h3 className="line-clamp-1 text-lg font-black">
+                      {item.name}
+                    </h3>
+                    <p className="mt-1 line-clamp-2 text-sm leading-snug text-[#6B6B6B]">
+                      {item.location || "Город не указан"}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-xl font-black">{item.price} ₽</div>
+                    <div className="text-xs font-bold uppercase text-[#8D8D8D]">
+                      / день
                     </div>
                   </div>
                 </div>
@@ -445,218 +478,174 @@ async function toggleFavorite(itemId: string) {
         </div>
       </section>
 
-      {/* REVIEWS */}
-      <section className="mx-auto max-w-7xl px-6 pb-28 lg:pb-20">
-        <div className="mb-8">
-          <h2 className="text-2xl font-extrabold lg:text-[28px]">
-            Свежие отзывы
-          </h2>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2">
-          {latestReviews.map((review) => {
-            const createdDate = new Date(review.created_at);
-
-            
-
-           const timeAgo = createdDate.toLocaleDateString("ru-RU");
-
-            return (
+      <section className="border-y border-black/5 bg-white/65 py-14">
+        <div className="mx-auto max-w-7xl px-6">
+          <h2 className="text-center text-3xl font-black">Свежие отзывы</h2>
+          <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            {(latestReviews.length ? latestReviews : []).map((review) => (
               <div
                 key={review.id}
-                className="flex min-h-[150px] flex-col justify-between rounded-[26px] bg-white p-5 shadow-sm lg:p-6"
+                className="min-h-[160px] rounded-[18px] border border-black/8 bg-white p-5 shadow-sm"
               >
-                <div className="flex items-start justify-between">
-                  <div className="text-sm text-[#8D8D8D]">
-                    {timeAgo}
-                  </div>
-
-                  <div className="flex gap-1 text-sm text-[#7BC47F]">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-[#8D8D8D]">
+                    {new Date(review.created_at).toLocaleDateString("ru-RU")}
+                  </span>
+                  <span className="font-black text-[#7BC47F]">
                     {"★".repeat(review.rating)}
-                  </div>
+                  </span>
                 </div>
-
-                <p className="mt-4 line-clamp-3 text-base leading-relaxed text-[#111111] lg:text-lg">
+                <p className="mt-4 line-clamp-3 text-sm font-bold leading-relaxed">
                   {review.text}
                 </p>
-
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-bold">
+                <div className="mt-5 text-xs text-[#6B6B6B]">
+                  <b className="text-[#111111]">
                     {review.profiles?.full_name || "Пользователь"}
-                  </span>
-
-                  <span className="text-[#8D8D8D]">
-                    о товаре
-                  </span>
-
+                  </b>{" "}
+                  о вещи{" "}
                   <a
                     href={`/item/${review.items?.id}`}
-                    className="text-[#7BC47F] transition hover:opacity-70"
+                    className="font-bold text-[#29933D]"
                   >
                     {review.items?.name}
                   </a>
                 </div>
               </div>
-            );
-          })}
+            ))}
+            {!latestReviews.length && (
+              <div className="col-span-full rounded-[22px] bg-white p-8 text-center text-[#6B6B6B] shadow-sm">
+                Отзывы появятся здесь после завершенных аренд.
+              </div>
+            )}
+          </div>
         </div>
       </section>
+
+      <section className="mx-auto max-w-7xl px-6 py-16 lg:py-20">
+        <h2 className="text-center text-3xl font-black lg:text-[36px]">
+          Почему выбирают SosedBeri?
+        </h2>
+        <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {benefitCards.map((benefit) => (
+            <div
+              key={benefit.title}
+              className="rounded-[24px] bg-white p-7 text-center shadow-sm"
+            >
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#7BC47F] text-3xl font-black">
+                {benefit.icon}
+              </div>
+              <h3 className="mt-5 text-xl font-black">{benefit.title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-[#6B6B6B]">
+                {benefit.text}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {locationModalOpen && (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4">
-    <div className="relative w-full max-w-2xl rounded-[32px] bg-[#111111] p-6 text-white shadow-2xl">
-      <button
-        onClick={() => setLocationModalOpen(false)}
-        className="absolute right-6 top-6 text-3xl"
-      >
-        ×
-      </button>
-
-      <h2 className="text-center text-3xl font-extrabold">
-        Где хотите арендовать?
-      </h2>
-
-      <input
-        value={city}
-        onChange={(e) => setCity(e.target.value)}
-        placeholder="Выберите город"
-        className="mt-6 w-full rounded-full border border-white/10 bg-transparent px-6 py-4 outline-none"
-      />
-
-      <div className="relative mt-6 overflow-hidden rounded-[24px]">
-
-  <YMaps
-    query={{
-      apikey: process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY,
-    }}
-  >
-
-    <Map
-      defaultState={{
-        center: mapCenter,
-        zoom: 13,
-      }}
-      width="100%"
-      height="420px"
-
-      onBoundsChange={(e: any) => {
-        const center = e.get("newCenter");
-        setMapCenter(center);
-      }}
-    />
-
-  </YMaps>
-
-  {/* CENTER PIN */}
-
-  <div
-    className="
-      pointer-events-none
-      absolute
-      left-1/2
-      top-1/2
-      z-10
-      -translate-x-1/2
-      -translate-y-full
-      text-5xl
-    "
-  >
-    📍
-  </div>
-
-  {/* HINT */}
-
-  <div
-    className="
-      absolute
-      bottom-5
-      left-1/2
-      z-10
-      -translate-x-1/2
-      rounded-full
-      bg-black/80
-      px-5
-      py-3
-      text-sm
-      text-white
-    "
-  >
-    Передвиньте карту, чтобы выбрать место
-  </div>
-
-</div>
-
-      <button
-  onClick={selectMapLocation}
-  className="mt-6 w-full rounded-full bg-[#7BC47F] px-6 py-4 font-bold text-[#111111]"
->
-  Выбрать это место
-</button>
-    </div>
-  </div>
-)}
-{dateModalOpen && (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
-    <div className="relative w-full max-w-xl rounded-[32px] bg-white p-6 text-[#111111] shadow-2xl">
-      <button
-        onClick={() => setDateModalOpen(false)}
-        className="absolute right-6 top-5 text-3xl"
-      >
-        ×
-      </button>
-
-      <h2 className="text-center text-3xl font-extrabold">
-        Когда хотите арендовать?
-      </h2>
-
-      <div className="mt-8 grid gap-4 md:grid-cols-2">
-        <div>
-          <label className="text-sm font-bold text-[#6B6B6B]">
-            Дата начала
-          </label>
-
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="mt-2 w-full rounded-2xl border border-black/10 bg-[#F7F7F5] p-4 outline-none"
-          />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4">
+          <div className="relative w-full max-w-2xl rounded-[32px] bg-white p-6 text-[#111111] shadow-2xl">
+            <button
+              onClick={() => setLocationModalOpen(false)}
+              className="absolute right-6 top-6 text-3xl"
+            >
+              ×
+            </button>
+            <h2 className="text-center text-3xl font-black">
+              Где хотите арендовать?
+            </h2>
+            <input
+              value={city}
+              onChange={(event) => setCity(event.target.value)}
+              placeholder="Выберите город"
+              className="mt-6 w-full rounded-full border border-black/10 bg-[#F7F7F5] px-6 py-4 outline-none"
+            />
+            <div className="relative mt-6 overflow-hidden rounded-[24px]">
+              <YMaps query={{ apikey: process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY }}>
+                <Map
+                  defaultState={{ center: mapCenter, zoom: 13 }}
+                  width="100%"
+                  height="420px"
+                  onBoundsChange={(event: any) => {
+                    const center = event.get("newCenter");
+                    setMapCenter(center);
+                  }}
+                />
+              </YMaps>
+              <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-full text-5xl">
+                📍
+              </div>
+              <div className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/80 px-5 py-3 text-sm text-white">
+                Передвиньте карту, чтобы выбрать место
+              </div>
+            </div>
+            <button
+              onClick={selectMapLocation}
+              className="mt-6 w-full rounded-full bg-[#7BC47F] px-6 py-4 font-black"
+            >
+              Выбрать это место
+            </button>
+          </div>
         </div>
+      )}
 
-        <div>
-          <label className="text-sm font-bold text-[#6B6B6B]">
-            Дата окончания
-          </label>
-
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="mt-2 w-full rounded-2xl border border-black/10 bg-[#F7F7F5] p-4 outline-none"
-          />
+      {dateModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
+          <div className="relative w-full max-w-xl rounded-[32px] bg-white p-6 text-[#111111] shadow-2xl">
+            <button
+              onClick={() => setDateModalOpen(false)}
+              className="absolute right-6 top-5 text-3xl"
+            >
+              ×
+            </button>
+            <h2 className="text-center text-3xl font-black">
+              Когда хотите арендовать?
+            </h2>
+            <div className="mt-8 grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="text-sm font-bold text-[#6B6B6B]">
+                  Дата начала
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[#F7F7F5] p-4 outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-bold text-[#6B6B6B]">
+                  Дата окончания
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(event) => setEndDate(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[#F7F7F5] p-4 outline-none"
+                />
+              </div>
+            </div>
+            <div className="mt-8 flex gap-3">
+              <button
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                }}
+                className="flex-1 rounded-full border border-black/10 px-6 py-4 font-black"
+              >
+                Сбросить
+              </button>
+              <button
+                onClick={() => setDateModalOpen(false)}
+                className="flex-1 rounded-full bg-[#7BC47F] px-6 py-4 font-black"
+              >
+                Применить
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-
-      <div className="mt-8 flex gap-3">
-        <button
-          onClick={() => {
-            setStartDate("");
-            setEndDate("");
-          }}
-          className="flex-1 rounded-full border border-black/10 px-6 py-4 font-bold"
-        >
-          Сбросить
-        </button>
-
-        <button
-          onClick={() => setDateModalOpen(false)}
-          className="flex-1 rounded-full bg-[#7BC47F] px-6 py-4 font-bold text-[#111111]"
-        >
-          Применить
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      )}
     </main>
   );
 }
