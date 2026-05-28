@@ -1,156 +1,168 @@
 "use client";
 
-import { useState } from "react";
-import { supabase } from "../../lib/supabase";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "../../lib/supabase";
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isRegister, setIsRegister] =
-  useState(false);
-
-const [loading, setLoading] =
-  useState(false);
+  const [isRegister, setIsRegister] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [vkLoading, setVkLoading] = useState(false);
   const router = useRouter();
-  async function signUp() {
-  setLoading(true);
 
-  const { error } =
-    await supabase.auth.signUp({
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setIsRegister(params.get("mode") === "register");
+  }, []);
+
+  async function signUp() {
+    setLoading(true);
+
+    const { error } = await supabase.auth.signUp({
       email,
-      password
+      password,
     });
 
-  setLoading(false);
+    setLoading(false);
 
-  if (error) {
-    alert(error.message);
-    return;
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("Проверьте email для подтверждения аккаунта");
+    router.push("/");
   }
-
-  alert(
-    "Проверьте email для подтверждения аккаунта"
-  );
-
-  router.push("/");
-}
 
   async function signIn() {
-  setLoading(true);
+    setLoading(true);
 
-  const { error } =
-    await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
-      password
+      password,
     });
 
-  setLoading(false);
+    setLoading(false);
 
-  if (error) {
-    alert(error.message);
-    return;
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    router.push("/");
   }
 
-  router.push("/");
-}
+  async function signInWithVK() {
+    setVkLoading(true);
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "custom:vk",
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
+
+    setVkLoading(false);
+
+    if (error) {
+      alert(
+        "VK ID пока не настроен в Supabase. Нужно создать Custom OAuth Provider с identifier custom:vk."
+      );
+      console.log(error);
+    }
+  }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#F7F7F5] px-6 text-[#111111]">
+    <main className="flex min-h-screen items-center justify-center bg-[#F7F7F5] px-6 py-28 text-[#111111]">
+      <div className="w-full max-w-md rounded-[36px] bg-white p-8 shadow-sm">
+        <div className="mb-8 flex rounded-full bg-[#F7F7F5] p-1">
+          <button
+            onClick={() => setIsRegister(false)}
+            className={`flex-1 rounded-full py-3 text-sm font-bold transition ${
+              !isRegister ? "bg-white shadow-sm" : "text-[#6B6B6B]"
+            }`}
+          >
+            Вход
+          </button>
 
-  <div className="w-full max-w-md rounded-[36px] bg-white p-8 shadow-sm">
+          <button
+            onClick={() => setIsRegister(true)}
+            className={`flex-1 rounded-full py-3 text-sm font-bold transition ${
+              isRegister ? "bg-white shadow-sm" : "text-[#6B6B6B]"
+            }`}
+          >
+            Регистрация
+          </button>
+        </div>
 
-    <div className="mb-8 flex rounded-full bg-[#F7F7F5] p-1">
+        <h1 className="text-4xl font-black">
+          {isRegister ? "Создать аккаунт" : "Вход"}
+        </h1>
 
-      <button
-        onClick={() =>
-          setIsRegister(false)
-        }
-        className={`flex-1 rounded-full py-3 text-sm font-bold transition ${
-          !isRegister
-            ? "bg-white shadow-sm"
-            : "text-[#6B6B6B]"
-        }`}
-      >
-        Вход
-      </button>
+        <p className="mt-3 text-[#6B6B6B]">
+          {isRegister
+            ? "Создайте аккаунт для аренды вещей рядом"
+            : "Войдите в аккаунт"}
+        </p>
 
-      <button
-        onClick={() =>
-          setIsRegister(true)
-        }
-        className={`flex-1 rounded-full py-3 text-sm font-bold transition ${
-          isRegister
-            ? "bg-white shadow-sm"
-            : "text-[#6B6B6B]"
-        }`}
-      >
-        Регистрация
-      </button>
-
-    </div>
-
-    <h1 className="text-4xl font-black">
-      {isRegister
-        ? "Создать аккаунт"
-        : "Вход"}
-    </h1>
-
-    <p className="mt-3 text-[#6B6B6B]">
-      {isRegister
-        ? "Создайте аккаунт для аренды вещей рядом"
-        : "Войдите в аккаунт"}
-    </p>
-
-    <div className="mt-8 space-y-4">
-
-      <input
-        type="email"
-        placeholder="Email"
-        className="w-full rounded-2xl border border-black/10 bg-[#F7F7F5] p-4 outline-none"
-        value={email}
-        onChange={(e) =>
-          setEmail(e.target.value)
-        }
-      />
-
-      <input
-        type="password"
-        placeholder="Пароль"
-        className="w-full rounded-2xl border border-black/10 bg-[#F7F7F5] p-4 outline-none"
-        value={password}
-        onChange={(e) =>
-          setPassword(e.target.value)
-        }
-      />
-
-      <button
-        onClick={
-          isRegister
-            ? signUp
-            : signIn
-        }
-        disabled={loading}
-        className="w-full rounded-full bg-[#7BC47F] py-4 font-bold text-white transition hover:opacity-90"
-      >
-        {loading
-          ? "Загрузка..."
-          : isRegister
-          ? "Создать аккаунт"
-          : "Войти"}
-      </button>
-
-      {!isRegister && (
         <button
-          className="w-full text-sm text-[#6B6B6B]"
+          type="button"
+          onClick={signInWithVK}
+          disabled={vkLoading}
+          className="mt-8 flex w-full items-center justify-center gap-3 rounded-full bg-[#0077FF] px-5 py-4 text-sm font-black text-white transition hover:bg-[#006BE6] disabled:opacity-60"
         >
-          Забыли пароль?
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-black text-[#0077FF]">
+            VK
+          </span>
+          {vkLoading ? "Открываем VK ID..." : "Продолжить через VK ID"}
         </button>
-      )}
 
-    </div>
+        <div className="my-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-black/10" />
+          <span className="text-xs font-bold uppercase text-[#8D8D8D]">
+            или email
+          </span>
+          <div className="h-px flex-1 bg-black/10" />
+        </div>
 
-  </div>
+        <div className="space-y-4">
+          <input
+            type="email"
+            placeholder="Email"
+            className="w-full rounded-2xl border border-black/10 bg-[#F7F7F5] p-4 outline-none transition focus:border-[#7BC47F]"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
 
-</main>
+          <input
+            type="password"
+            placeholder="Пароль"
+            className="w-full rounded-2xl border border-black/10 bg-[#F7F7F5] p-4 outline-none transition focus:border-[#7BC47F]"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+
+          <button
+            onClick={isRegister ? signUp : signIn}
+            disabled={loading}
+            className="w-full rounded-full bg-[#7BC47F] py-4 font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+          >
+            {loading
+              ? "Загрузка..."
+              : isRegister
+                ? "Создать аккаунт"
+                : "Войти"}
+          </button>
+
+          {!isRegister && (
+            <button className="w-full text-sm text-[#6B6B6B]">
+              Забыли пароль?
+            </button>
+          )}
+        </div>
+      </div>
+    </main>
   );
 }
