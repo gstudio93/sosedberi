@@ -17,7 +17,6 @@ export default function AddItemPage() {
   const [price, setPrice] = useState("");
   const [deposit, setDeposit] = useState("");
   const [location, setLocation] = useState("");
-  const [image, setImage] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
@@ -28,7 +27,7 @@ export default function AddItemPage() {
   const [submitting, setSubmitting] = useState(false);
   const suggestRequestId = useRef(0);
 
-  const previewImage = images[0] || image || "/hero.jpg";
+  const previewImage = images[0] || "/hero.jpg";
   const priceNumber = Number(price) || 0;
   const depositNumber = Number(deposit) || 0;
 
@@ -141,9 +140,19 @@ export default function AddItemPage() {
       uploadedUrls.push(data.publicUrl);
     }
 
-    setImages(uploadedUrls);
-    setImage(uploadedUrls[0] || "");
+    setImages((current) => [...current, ...uploadedUrls]);
     setUploading(false);
+  }
+
+  function makeMainImage(selectedImage: string) {
+    setImages((current) => [
+      selectedImage,
+      ...current.filter((img) => img !== selectedImage),
+    ]);
+  }
+
+  function removeImage(selectedImage: string) {
+    setImages((current) => current.filter((img) => img !== selectedImage));
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -177,7 +186,7 @@ export default function AddItemPage() {
           deposit: depositNumber,
           location: location.trim(),
           category,
-          image: images[0] || image,
+          image: images[0] || "",
           images,
           latitude: coords.latitude,
           longitude: coords.longitude,
@@ -378,6 +387,7 @@ export default function AddItemPage() {
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []);
                     uploadImages(files);
+                    e.target.value = "";
                   }}
                   className="sr-only"
                 />
@@ -389,6 +399,46 @@ export default function AddItemPage() {
                   Лучше добавить 3-5 фото с разных ракурсов
                 </span>
               </label>
+              {images.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {images.map((img, index) => (
+                    <div
+                      key={img}
+                      className={`relative overflow-hidden rounded-2xl border bg-[#F7F7F5] ${
+                        index === 0 ? "border-[#7BC47F]" : "border-black/10"
+                      }`}
+                    >
+                      <img src={img} alt="" className="h-28 w-full object-cover" />
+
+                      {index === 0 && (
+                        <div className="absolute left-2 top-2 rounded-full bg-[#7BC47F] px-2 py-1 text-xs font-bold text-white">
+                          Главное
+                        </div>
+                      )}
+
+                      <div className="absolute bottom-2 left-2 right-2 flex gap-2">
+                        {index !== 0 && (
+                          <button
+                            type="button"
+                            onClick={() => makeMainImage(img)}
+                            className="flex-1 rounded-full bg-white/95 px-3 py-2 text-xs font-bold shadow-sm"
+                          >
+                            Главным
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => removeImage(img)}
+                          className="rounded-full bg-white/95 px-3 py-2 text-xs font-bold text-red-500 shadow-sm"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 
@@ -435,15 +485,20 @@ export default function AddItemPage() {
                   </div>
                 </div>
 
-                {images.length > 1 && (
+                {images.length > 0 && (
                   <div className="mt-4 flex gap-2 overflow-x-auto">
-                    {images.map((img) => (
-                      <img
+                    {images.map((img, index) => (
+                      <button
                         key={img}
-                        src={img}
-                        alt=""
-                        className="h-16 w-16 shrink-0 rounded-2xl object-cover"
-                      />
+                        type="button"
+                        onClick={() => makeMainImage(img)}
+                        className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border ${
+                          index === 0 ? "border-[#7BC47F]" : "border-transparent"
+                        }`}
+                        title={index === 0 ? "Главное фото" : "Сделать главным"}
+                      >
+                        <img src={img} alt="" className="h-full w-full object-cover" />
+                      </button>
                     ))}
                   </div>
                 )}
