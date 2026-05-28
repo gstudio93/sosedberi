@@ -262,9 +262,17 @@ function getTotalPrice() {
 
   return days * pricePerDay;
 }
+
+function getDepositAmount() {
+  return Number(item.deposit) || 0;
+}
+
+function getTotalWithDeposit() {
+  return getTotalPrice() + getDepositAmount();
+}
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-6 pb-32 pt-28 text-[#111111] lg:pb-20 lg:pt-32">
-            <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 lg:grid-cols-[1fr_420px]">
+            <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* LEFT */}
         <div>
           <button
@@ -299,7 +307,7 @@ function getTotalPrice() {
 )}
 </div>
 
-          <p className="mt-4 text-lg text-[#6B6B6B]">
+          <p className="mt-4 text-base text-[#6B6B6B]">
             📍 {item.location}
           </p>
 
@@ -308,7 +316,7 @@ function getTotalPrice() {
     {/* OWNER INFO */}
     <div className="p-8">
       <div className="flex items-start gap-4 lg:items-center lg:gap-5">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#7BC47F] text-2xl font-black text-white lg:h-24 lg:w-24 lg:text-5xl">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#7BC47F] text-2xl font-black text-white lg:h-20 lg:w-20 lg:text-4xl">
           {ownerProfile?.avatar ? (
             <img
               src={ownerProfile.avatar}
@@ -329,16 +337,16 @@ function getTotalPrice() {
 
           <a
             href={`/user/${item.owner_id}`}
-            className="max-w-[190px] truncate text-2xl font-black leading-tight lg:max-w-none lg:text-5xl"
+            className="max-w-[190px] truncate text-2xl font-black leading-tight lg:max-w-none lg:text-4xl"
           >
             {ownerProfile?.full_name || "Пользователь"}
           </a>
         </div>
       </div>
 
-      <div className="mt-8 grid gap-4 text-lg text-[#111111]">
+      <div className="mt-7 grid gap-3 text-base text-[#111111]">
         {ownerProfile?.verified && (
-  <div className="flex items-start gap-3 text-base leading-snug lg:text-xl">
+  <div className="flex items-start gap-3 text-base leading-snug">
     <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
       ✓
     </span>
@@ -348,7 +356,7 @@ function getTotalPrice() {
 )}
 
 {ownerProfile?.phone_verified && (
-  <div className="flex items-start gap-3 text-base leading-snug lg:text-xl">
+  <div className="flex items-start gap-3 text-base leading-snug">
     <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
       📱
     </span>
@@ -356,28 +364,28 @@ function getTotalPrice() {
     <span>Телефон подтверждён</span>
   </div>
 )}
-        <div className="flex items-start gap-3 text-base leading-snug lg:text-xl">
+        <div className="flex items-start gap-3 text-base leading-snug">
           <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
             ✓
           </span>
           <span>Профиль подтверждён</span>
         </div>
 
-        <div className="flex items-start gap-3 text-base leading-snug lg:text-xl">
+        <div className="flex items-start gap-3 text-base leading-snug">
           <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
             💬
           </span>
           <span>Быстро отвечает на сообщения</span>
         </div>
 
-        <div className="flex items-start gap-3 text-base leading-snug lg:text-xl">
+        <div className="flex items-start gap-3 text-base leading-snug">
           <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
             📍
           </span>
           <span>{item.location}</span>
         </div>
 
-        <div className="flex items-start gap-3 text-base leading-snug lg:text-xl">
+        <div className="flex items-start gap-3 text-base leading-snug">
           <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
             🛡
           </span>
@@ -472,29 +480,29 @@ function getTotalPrice() {
         </div>
 
         {/* RIGHT SIDEBAR */}
-        <div className="h-fit lg:sticky lg:top-32">
-          <div className="sticky top-28 rounded-[32px] border border-black/5 bg-white p-8 shadow-xl">
-            <h1 className="text-3xl font-black leading-tight lg:text-5xl">
+        <div className="h-fit">
+          <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-lg">
+            <h1 className="text-2xl font-black leading-tight lg:text-4xl">
   {item.name}
 </h1>
             
 
             <button
               onClick={toggleFavorite}
-              className={`mt-6 w-full rounded-full px-6 py-5 text-lg font-bold transition ${
+              className={`mt-5 w-full rounded-full px-5 py-3.5 text-sm font-bold transition ${
                 isFavorite
-                  ? "bg-[#7BC47F] text-white"
-                  : "border border-black/10 bg-white text-[#111111]"
+                  ? "border border-[#7BC47F] bg-[#F1FAF2] text-[#3F9E47]"
+                  : "border border-black/10 bg-white text-[#555555] hover:bg-[#F7F7F5]"
               }`}
             >
               {isFavorite ? "❤️ В избранном" : "🤍 В избранное"}
             </button>
 
-            <div className="rounded-[32px] bg-[#F7F7F5] p-5 lg:p-8">
-              <h2 className="mb-6 text-2xl font-black">
+            <div className="mt-5 rounded-[26px] bg-[#F7F7F5] p-5">
+              <h2 className="mb-4 text-xl font-black">
                 Выберите даты
               </h2>
-<div className="mx-auto w-full max-w-[330px] overflow-visible">
+<div className="item-booking-calendar mx-auto w-full max-w-[280px] overflow-visible">
               <DatePicker
               locale="ru"
 calendarStartDay={1}
@@ -517,80 +525,93 @@ calendarStartDay={1}
                 }))}
               />
             </div></div>
-<div className="mt-6">
-  <div className="text-sm font-bold uppercase tracking-wide text-[#8D8D8D]">
-    Цены
+<div className="mt-5 rounded-[24px] border border-black/5 bg-white p-4 shadow-sm">
+  <div className="flex items-start justify-between gap-4">
+    <div>
+      <div className="text-sm font-bold uppercase tracking-wide text-[#8D8D8D]">
+        Цена
+      </div>
+      <div className="mt-1 text-2xl font-black tracking-tight">
+        {Number(item.price) || 0} ₽
+      </div>
+      <div className="mt-1 text-sm text-[#6B6B6B]">
+        за день аренды
+      </div>
+    </div>
+
+    {getDepositAmount() > 0 && (
+      <div className="rounded-2xl bg-[#F7F7F5] px-4 py-3 text-right">
+        <div className="text-xs font-bold uppercase text-[#8D8D8D]">
+          Залог
+        </div>
+        <div className="mt-1 text-xl font-black">
+          {getDepositAmount()} ₽
+        </div>
+      </div>
+    )}
   </div>
 
-  <div className="grid grid-cols-3 gap-3">
-    <div className="rounded-[24px] border border-black/10 bg-white p-4 text-center">
-      <div className="text-2xl font-black leading-tight lg:text-3xl">
-        {item.price} ₽
+  {startDate && endDate ? (
+    <div className="mt-6 space-y-3 border-t border-black/10 pt-5">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-[#6B6B6B]">
+          {getRentalDays()} дн. аренды
+        </span>
+        <span className="font-bold">
+          {getTotalPrice()} ₽
+        </span>
       </div>
-      <div className="mt-1 text-xs leading-snug text-[#6B6B6B] lg:text-sm">
-  за день
+
+      {getDepositAmount() > 0 && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-[#6B6B6B]">
+            Возвратный залог
+          </span>
+          <span className="font-bold">
+            {getDepositAmount()} ₽
+          </span>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between border-t border-black/10 pt-4">
+        <span className="font-bold">Итого</span>
+        <span className="text-2xl font-black">
+          {getTotalWithDeposit()} ₽
+        </span>
+      </div>
+
+      <button
+        onClick={() => {
+          setStartDate(null);
+          setEndDate(null);
+        }}
+        className="text-sm font-bold text-[#7BC47F]"
+      >
+        Очистить даты
+      </button>
+    </div>
+  ) : (
+    <div className="mt-6 rounded-2xl bg-[#F7F7F5] p-4 text-sm leading-relaxed text-[#6B6B6B]">
+      Выберите даты в календаре, чтобы увидеть итоговую стоимость.
+    </div>
+  )}
 </div>
-      <div className="mt-1 text-sm text-[#6B6B6B]">
-        1 день
-      </div>
-    </div>
-
-    <div className="rounded-2xl border border-black/10 bg-white p-4 text-center">
-      <div className="text-2xl font-black">
-        {Number(item.price) * 3} ₽
-      </div>
-      <div className="mt-1 text-sm text-[#6B6B6B]">
-        3 дня
-      </div>
-    </div>
-
-    <div className="rounded-2xl border border-black/10 bg-white p-4 text-center">
-      <div className="text-2xl font-black">
-        {Number(item.price) * 7} ₽
-      </div>
-      <div className="mt-1 text-sm text-[#6B6B6B]">
-        7 дней
-      </div>
-    </div>
-  </div>
-</div>
-{startDate && endDate && (
-  <div className="mt-6 border-t border-black/10 pt-6 text-center">
-    <div className="text-4xl font-black">
-      {getTotalPrice()} ₽
-    </div>
-
-    <div className="mt-2 text-[#6B6B6B]">
-      За {getRentalDays()} дн. аренды
-    </div>
-
-    <button
-      onClick={() => {
-        setStartDate(null);
-        setEndDate(null);
-      }}
-      className="mt-4 text-sm font-bold text-[#7BC47F]"
-    >
-      Очистить даты
-    </button>
-  </div>
-)}
             <button
   onClick={handleBooking}
-  className="mt-5 w-full rounded-full bg-[#7BC47F] px-6 py-5 text-lg font-bold text-white transition hover:bg-[#69B56E]"
+  className="mt-5 w-full rounded-full bg-[#7BC47F] px-5 py-4 text-base font-bold text-white transition hover:bg-[#69B56E]"
 >
   Забронировать
 </button>
 
             <a
               href={`/chat/${item.id}?owner=${item.owner_id}`}
-              className="mt-6 block w-full rounded-full border border-black/10 bg-white py-4 text-center text-base font-bold transition hover:bg-[#F7F7F5] lg:py-5 lg:text-lg"
+              className="mt-4 block w-full rounded-full border border-black/10 bg-white py-4 text-center text-base font-bold transition hover:bg-[#F7F7F5]"
             >
               Написать владельцу
             </a>
           </div>
 
-          <div className="mt-8 rounded-[32px] border border-black/5 bg-white p-8 shadow-sm">
+          <div className="mt-6 rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-bold">Занятые даты</h2>
 
             <div className="mt-4 space-y-3">
@@ -614,7 +635,7 @@ calendarStartDay={1}
       {/* RELATED ITEMS */}
 {relatedItems.length > 0 && (
   <section className="mx-auto mt-20 max-w-7xl">
-    <h2 className="mb-8 text-3xl font-black">
+    <h2 className="mb-8 text-2xl font-black">
       Похожие вещи
     </h2>
 

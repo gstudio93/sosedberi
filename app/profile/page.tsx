@@ -1,28 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
+
+type Tab = "overview" | "items" | "bookings" | "messages" | "favorites" | "wallet" | "reviews" | "settings";
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
-  const [username, setUsername] =
-  useState("");
-const [emailVerified, setEmailVerified] =
-  useState(false);
-  const [phoneVerified, setPhoneVerified] =
-  useState(false);
-const [bio, setBio] =
-  useState("");
-const [activeTab, setActiveTab] =
-  useState<any>("overview");
-const [avatar, setAvatar] =
-  useState("");
-  const [phone, setPhone] =
-  useState("");
+  const [username, setUsername] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [avatar, setAvatar] = useState("");
+  const [location, setLocation] = useState("");
+  const [phone, setPhone] = useState("");
   const [myItems, setMyItems] = useState<any[]>([]);
   const [myBookings, setMyBookings] = useState<any[]>([]);
-  const [incomingBookings, setIncomingBookings] =
-    useState<any[]>([]);
+  const [incomingBookings, setIncomingBookings] = useState<any[]>([]);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -30,40 +27,36 @@ const [avatar, setAvatar] =
 
   async function loadProfile() {
     const { data } = await supabase.auth.getUser();
-
     const currentUser = data.user;
-
-    const emailVerified =
-  !!user?.email_confirmed_at;
 
     if (!currentUser) return;
 
     setUser(currentUser);
-    const { data: profile } =
-  await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", currentUser.id)
-    .single();
+    setEmailVerified(!!currentUser.email_confirmed_at);
 
-if (profile) {
-  setUsername(profile.username || "");
-  setBio(profile.bio || "");
-  setAvatar(profile.avatar || "");
-  setPhone(profile.phone || "");
-  setPhoneVerified(!!profile.phone_verified);
-}
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", currentUser.id)
+      .single();
 
-    // МОИ ОБЪЯВЛЕНИЯ
+    if (profile) {
+      setUsername(profile.username || profile.full_name || "");
+      setAvatar(profile.avatar || "");
+      setLocation(profile.location || "");
+      setPhone(profile.phone || "");
+      setPhoneVerified(!!profile.phone_verified);
+    }
+
     const { data: items } = await supabase
       .from("items")
       .select("*")
       .eq("owner_id", currentUser.id)
       .order("created_at", { ascending: false });
 
-    setMyItems(items || []);
+    const ownedItems = items || [];
+    setMyItems(ownedItems);
 
-    // МОИ БРОНИ
     const { data: bookings } = await supabase
       .from("bookings")
       .select(`
@@ -75,7 +68,11 @@ if (profile) {
 
     setMyBookings(bookings || []);
 
-    // ВХОДЯЩИЕ БРОНИ
+    if (ownedItems.length === 0) {
+      setIncomingBookings([]);
+      return;
+    }
+
     const { data: incoming } = await supabase
       .from("bookings")
       .select(`
@@ -84,8 +81,9 @@ if (profile) {
       `)
       .in(
         "item_id",
-        (items || []).map((i) => i.id)
-      );
+        ownedItems.map((item) => item.id)
+      )
+      .order("created_at", { ascending: false });
 
     setIncomingBookings(incoming || []);
   }
@@ -95,733 +93,828 @@ if (profile) {
 
     if (!confirmed) return;
 
+    await supabase.from("items").delete().eq("id", id);
+    setMyItems((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  async function toggleItemStatus(itemId: string, currentStatus: string) {
+    const newStatus = currentStatus === "paused" ? "active" : "paused";
+
     await supabase
       .from("items")
-      .delete()
-      .eq("id", id);
+      .update({
+        status: newStatus,
+      })
+      .eq("id", itemId);
 
     setMyItems((prev) =>
-      prev.filter((item) => item.id !== id)
+      prev.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              status: newStatus,
+            }
+          : item
+      )
     );
   }
-  async function toggleItemStatus(
-  itemId: string,
-  currentStatus: string
-) {
-  const newStatus =
-    currentStatus === "paused"
-      ? "active"
-      : "paused";
 
-  await supabase
-    .from("items")
-    .update({
-      status: newStatus,
-    })
-    .eq("id", itemId);
+  async function handlePayment(bookingId: string) {
+    await supabase
+      .from("bookings")
+      .update({
+        payment_status: "paid",
+      })
+      .eq("id", bookingId);
 
-  setMyItems((prev) =>
-    prev.map((item) =>
-      item.id === itemId
-        ? {
-            ...item,
-            status: newStatus,
-          }
-        : item
-    )
-  );
-}
-  async function handlePayment(
-  bookingId: string
-) {
-  await supabase
-    .from("bookings")
-    .update({
-      payment_status: "paid",
-    })
-    .eq("id", bookingId);
+    setMyBookings((prev) =>
+      prev.map((booking) =>
+        booking.id === bookingId
+          ? {
+              ...booking,
+              payment_status: "paid",
+            }
+          : booking
+      )
+    );
+  }
 
-  setMyBookings((prev) =>
-    prev.map((booking) =>
-      booking.id === bookingId
-        ? {
-            ...booking,
-            payment_status: "paid",
-          }
-        : booking
-    )
-  );
-
-  alert("Оплата прошла успешно");
-}
   async function saveProfile() {
-  if (!user) return;
+    if (!user) return;
 
-  await supabase
-    .from("profiles")
-    .upsert({
+    setSavingProfile(true);
+
+    const { error } = await supabase.from("profiles").upsert({
       id: user.id,
       username,
-      bio,
+      full_name: username,
       avatar,
+      location,
       phone,
+      updated_at: new Date().toISOString(),
     });
 
-  alert("Профиль сохранен");
-}
+    if (error) {
+      alert("Не удалось сохранить профиль. Проверьте колонку profiles.location в Supabase.");
+      setSavingProfile(false);
+      return;
+    }
 
-  async function updateBookingStatus(
-  bookingId: string,
-  status: string
-) {
-  const { data: booking } = await supabase
-    .from("bookings")
-    .select(`
-      *,
-      items (*)
-    `)
-    .eq("id", bookingId)
-    .single();
+    await supabase
+      .from("items")
+      .update({ owner_avatar: avatar })
+      .eq("owner_id", user.id);
 
-  await supabase
-    .from("bookings")
-    .update({ status })
-    .eq("id", bookingId);
-
-  setIncomingBookings((prev) =>
-    prev.map((b) =>
-      b.id === bookingId
-        ? { ...b, status }
-        : b
-    )
-  );
-
-  if (booking) {
-    await supabase.from("notifications").insert([
-      {
-        user_id: booking.renter_id,
-        text:
-          status === "approved"
-            ? `Бронь подтверждена: ${booking.items?.name}`
-            : `Бронь отклонена: ${booking.items?.name}`,
-        link: "/profile",
-      },
-    ]);
+    alert("Профиль сохранен");
+    setSavingProfile(false);
   }
-} 
+
+  async function uploadAvatar(file: File | null) {
+    if (!user || !file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Выберите изображение для аватара.");
+      return;
+    }
+
+    setUploadingAvatar(true);
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const fileName = `${user.id}/${crypto.randomUUID()}-${safeName}`;
+
+    const { error } = await supabase.storage
+      .from("avatars")
+      .upload(fileName, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (error) {
+      console.log(error);
+      alert("Не удалось загрузить аватар. Проверьте Storage bucket avatars.");
+      setUploadingAvatar(false);
+      return;
+    }
+
+    const { data } = supabase.storage.from("avatars").getPublicUrl(fileName);
+
+    setAvatar(data.publicUrl);
+    setUploadingAvatar(false);
+  }
+
+  async function updateBookingStatus(bookingId: string, status: string) {
+    const { data: booking } = await supabase
+      .from("bookings")
+      .select(`
+        *,
+        items (*)
+      `)
+      .eq("id", bookingId)
+      .single();
+
+    await supabase.from("bookings").update({ status }).eq("id", bookingId);
+
+    setIncomingBookings((prev) =>
+      prev.map((item) => (item.id === bookingId ? { ...item, status } : item))
+    );
+
+    if (booking) {
+      await supabase.from("notifications").insert([
+        {
+          user_id: booking.renter_id,
+          type: "booking",
+          text:
+            status === "approved"
+              ? `Бронь подтверждена: ${booking.items?.name}`
+              : `Бронь отклонена: ${booking.items?.name}`,
+          link: "/profile",
+        },
+      ]);
+    }
+  }
+
+  async function resendConfirmation() {
+    const { data } = await supabase.auth.getUser();
+    const currentUser = data.user;
+
+    setEmailVerified(!!currentUser?.email_confirmed_at);
+
+    if (!currentUser?.email) return;
+
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: currentUser.email,
+    });
+
+    if (error) {
+      alert("Не удалось отправить письмо");
+      return;
+    }
+
+    alert("Письмо отправлено повторно");
+  }
+
+  async function logout() {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  }
+
+  function getBookingDays(booking: any) {
+    if (!booking.start_date || !booking.end_date) return 1;
+
+    const start = new Date(booking.start_date);
+    const end = new Date(booking.end_date);
+    const diff = end.getTime() - start.getTime();
+
+    return Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)) + 1);
+  }
+
+  function getBookingTotal(booking: any) {
+    const days = getBookingDays(booking);
+    const price = Number(booking.items?.price) || 0;
+
+    return days * price;
+  }
+
+  function formatDateRange(booking: any) {
+    if (!booking.start_date || !booking.end_date) return "Даты не выбраны";
+
+    return `${new Date(booking.start_date).toLocaleDateString("ru-RU")} - ${new Date(
+      booking.end_date
+    ).toLocaleDateString("ru-RU")}`;
+  }
+
+  const displayName = username || user?.email?.split("@")[0] || "Пользователь";
+  const pendingIncoming = incomingBookings.filter((booking) => booking.status === "pending");
+  const completedCount = [
+    ...myBookings,
+    ...incomingBookings,
+  ].filter((booking) => booking.status === "completed").length;
+  const paidTotal = useMemo(
+    () =>
+      incomingBookings
+        .filter((booking) => booking.payment_status === "paid")
+        .reduce((sum, booking) => sum + getBookingTotal(booking), 0),
+    [incomingBookings]
+  );
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-black p-10 text-white">
+      <main className="min-h-screen bg-[#F7F7F5] px-6 pt-32 text-[#111111]">
         Загрузка...
       </main>
     );
   }
-  function getBookingDays(booking: any) {
-  if (!booking.start_date || !booking.end_date) return 1;
 
-  const start = new Date(booking.start_date);
-  const end = new Date(booking.end_date);
+  const navItems = [
+    { id: "overview", label: "Обзор", icon: "⌂" },
+    { id: "items", label: "Мои объявления", icon: "▣" },
+    { id: "bookings", label: "Бронирования", icon: "□", badge: pendingIncoming.length },
+    { id: "messages", label: "Сообщения", icon: "◌" },
+    { id: "favorites", label: "Избранное", icon: "♡" },
+    { id: "wallet", label: "Кошелек", icon: "₽" },
+    { id: "reviews", label: "Отзывы", icon: "☆" },
+    { id: "settings", label: "Настройки", icon: "⚙" },
+  ] as const;
 
-  const diff = end.getTime() - start.getTime();
-
-  return Math.max(
-    1,
-    Math.ceil(diff / (1000 * 60 * 60 * 24)) + 1
-  );
-}
-
-function getBookingTotal(booking: any) {
-  const days = getBookingDays(booking);
-  const price = Number(booking.items?.price) || 0;
-
-  return days * price;
-}
-async function resendConfirmation() {
-  const { data } =
-    await supabase.auth.getUser();
-
-  const user = data.user;
-  setEmailVerified(
-  !!user?.email_confirmed_at
-);
-
-  if (!user?.email) return;
-
-  const { error } =
-    await supabase.auth.resend({
-      type: "signup",
-      email: user.email,
-    });
-
-  if (error) {
-    alert("Ошибка отправки");
-    return;
-  }
-
-  alert(
-    "Письмо отправлено повторно"
-  );
-}
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-6 pb-24 pt-32 text-[#111111]">
-      {!user?.email_confirmed_at && (
-  <div className="mb-8 rounded-[28px] border border-yellow-300 bg-yellow-50 p-6 text-[#111111]">
-    <div className="text-xl font-black">
-      Подтвердите email
-    </div>
-
-    <p className="mt-2 text-sm text-[#6B6B6B]">
-      Мы отправили письмо с подтверждением на вашу почту.
-    </p>
-    <button
-  onClick={resendConfirmation}
-  className="mt-4 rounded-full bg-[#111111] px-5 py-3 text-sm font-bold text-white transition hover:opacity-80"
->
-  Отправить письмо повторно
-</button>
-  </div>
-)}
-      <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[280px_1fr]">
-        {/* SIDEBAR */}
-<aside className="h-fit rounded-[32px] border border-black/5 bg-white p-6 shadow-sm lg:sticky lg:top-32">
-  <div className="flex items-center gap-4">
-    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-2xl font-black text-white">
-      {avatar ? (
-        <img
-          src={avatar}
-          alt="avatar"
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        username?.[0]?.toUpperCase() ||
-        user.email?.[0]?.toUpperCase()
+      {!emailVerified && (
+        <div className="mx-auto mb-6 max-w-7xl rounded-[24px] border border-yellow-200 bg-yellow-50 px-5 py-4 text-sm text-[#111111]">
+          <div className="font-bold">Подтвердите email</div>
+          <div className="mt-1 text-[#6B6B6B]">
+            Мы отправили письмо с подтверждением на вашу почту.
+          </div>
+          <button
+            onClick={resendConfirmation}
+            className="mt-3 rounded-full bg-[#111111] px-4 py-2 text-xs font-bold text-white"
+          >
+            Отправить повторно
+          </button>
+        </div>
       )}
-    </div>
 
-    <div>
-      <div className="text-lg font-black">
-        {username || "Пользователь"}
-      </div>
+      <div className="mx-auto grid max-w-7xl gap-7 lg:grid-cols-[270px_1fr]">
+        <aside className="h-fit overflow-hidden rounded-[24px] border border-black/5 bg-white shadow-sm">
+          <div className="border-b border-black/5 p-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-xl font-extrabold text-white">
+                {avatar ? (
+                  <img src={avatar} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  displayName[0]?.toUpperCase()
+                )}
+              </div>
 
-      <div className="text-sm text-[#6B6B6B]">
-        На сайте
-      </div>
-    </div>
-  </div>
-
-  <div className="mt-6 rounded-2xl bg-[#F7F7F5] px-4 py-3 text-sm text-[#6B6B6B]">
-    {user.email}
-  </div>
-
-  <button
-  onClick={() => setActiveTab("overview")}
-  className={`block w-full rounded-2xl px-4 py-3 text-left font-bold transition ${
-    activeTab === "overview"
-      ? "bg-[#7BC47F]/15 text-[#3F9E47]"
-      : "text-[#555555] hover:bg-[#F7F7F5]"
-  }`}
->
-  Обзор
-</button>
-
-<button
-  onClick={() => setActiveTab("items")}
-  className={`block w-full rounded-2xl px-4 py-3 text-left font-bold transition ${
-    activeTab === "items"
-      ? "bg-[#7BC47F]/15 text-[#3F9E47]"
-      : "text-[#555555] hover:bg-[#F7F7F5]"
-  }`}
->
-  Мои объявления
-</button>
-
-<button
-  onClick={() => setActiveTab("bookings")}
-  className={`block w-full rounded-2xl px-4 py-3 text-left font-bold transition ${
-    activeTab === "bookings"
-      ? "bg-[#7BC47F]/15 text-[#3F9E47]"
-      : "text-[#555555] hover:bg-[#F7F7F5]"
-  }`}
->
-  Бронирования
-</button>
-
-<button
-  onClick={() => setActiveTab("settings")}
-  className={`block w-full rounded-2xl px-4 py-3 text-left font-bold transition ${
-    activeTab === "settings"
-      ? "bg-[#7BC47F]/15 text-[#3F9E47]"
-      : "text-[#555555] hover:bg-[#F7F7F5]"
-  }`}
->
-  Настройки
-</button>
-
-  <a
-    href="/add"
-    className="mt-8 block rounded-full bg-[#7BC47F] px-5 py-4 text-center font-bold text-white"
-  >
-    Сдать вещь
-  </a>
-</aside>
-{/* CONTENT */}
-<section>
-
-       {/* HEADER */}
-<div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
-  <div>
-    <h1 className="text-5xl font-black">
-  {activeTab === "overview" && "Обзор"}
-  {activeTab === "items" && "Мои объявления"}
-  {activeTab === "bookings" && "Бронирования"}
-  {activeTab === "settings" && "Настройки"}
-</h1>
-<div className="mt-4 flex flex-wrap gap-3">
-
-  {emailVerified && (
-    <div className="rounded-full bg-[#E8F7EA] px-4 py-2 text-sm font-bold text-[#3F9E47]">
-      ✉ Email подтверждён
-    </div>
-  )}
-  {phoneVerified && (
-  <div className="rounded-full bg-[#E8F7EA] px-4 py-2 text-sm font-bold text-[#3F9E47]">
-    📱 Телефон подтверждён
-  </div>
-)}
-
-</div>
-
-    <p className="mt-3 text-lg text-[#6B6B6B]">
-      {activeTab === "overview" && `Добро пожаловать, ${username || "пользователь"}.`}
-{activeTab === "items" && "Управляйте своими объявлениями и добавляйте новые вещи."}
-{activeTab === "bookings" && "Следите за своими бронями и входящими заявками."}
-{activeTab === "settings" && "Обновите имя, описание и аватар профиля."}
-    </p>
-  </div>
-
-  <a
-    href={`/user/${user.id}`}
-    className="rounded-2xl border border-black/10 bg-white px-6 py-4 font-bold shadow-sm transition hover:bg-[#F7F7F5]"
-  >
-    Посмотреть профиль
-  </a>
-</div>
-{activeTab === "overview" && (
-<>
-{/* STATS */}
-<div className="mb-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-  <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
-    <div className="text-sm text-[#6B6B6B]">
-      Мои объявления
-    </div>
-
-    <div className="mt-3 text-4xl font-black">
-      {myItems.length}
-    </div>
-
-    <div className="mt-1 text-sm text-[#6B6B6B]">
-      Активные
-    </div>
-  </div>
-
-  <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
-    <div className="text-sm text-[#6B6B6B]">
-      Мои бронирования
-    </div>
-
-    <div className="mt-3 text-4xl font-black">
-      {myBookings.length}
-    </div>
-
-    <div className="mt-1 text-sm text-[#6B6B6B]">
-      Всего
-    </div>
-  </div>
-
-  <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
-    <div className="text-sm text-[#6B6B6B]">
-      Входящие заявки
-    </div>
-
-    <div className="mt-3 text-4xl font-black">
-      {incomingBookings.length}
-    </div>
-
-    <div className="mt-1 text-sm text-[#6B6B6B]">
-      На мои вещи
-    </div>
-  </div>
-
-  <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
-    <div className="text-sm text-[#6B6B6B]">
-      Оплачено броней
-    </div>
-
-    <div className="mt-3 text-4xl font-black">
-      {
-        myBookings.filter(
-          (b) => b.payment_status === "paid"
-        ).length
-      }
-    </div>
-
-    <div className="mt-1 text-sm text-[#6B6B6B]">
-      Успешные оплаты
-    </div>
-  </div>
-</div>
-{activeTab === "settings" && (
-<>
-        <section
-  id="settings"
-  className="mb-8 rounded-[32px] border border-black/5 bg-white p-8 shadow-sm">
-
-  <h2 className="mb-6 text-3xl font-bold">
-    Настройки профиля
-  </h2>
-
-  <div className="space-y-4">
-
-    <input
-      value={username}
-      onChange={(e) =>
-        setUsername(e.target.value)
-      }
-      placeholder="Имя"
-      className="w-full rounded-2xl bg-[#F7F7F5] p-4 outline-none"
-    />
-
-    <input
-      value={avatar}
-      onChange={(e) =>
-        setAvatar(e.target.value)
-      }
-      placeholder="Ссылка на фото"
-      className="w-full rounded-2xl bg-[#F7F7F5] p-4 outline-none"
-    />
-    
-
-    <textarea
-      value={bio}
-      onChange={(e) =>
-        setBio(e.target.value)
-      }
-      placeholder="О себе"
-      className="min-h-[120px] w-full rounded-2xl bg-[#F7F7F5] p-4 outline-none"
-    />
-    <div className="mt-6">
-  <label className="mb-2 block text-sm font-bold text-[#6B6B6B]">
-    Телефон
-  </label>
-
-  <input
-    value={phone}
-    onChange={(e) =>
-      setPhone(e.target.value)
-    }
-    placeholder="+7 999 123 45 67"
-    className="w-full rounded-2xl border border-black/10 bg-white p-4 outline-none"
-  />
-</div>
-
-    <button
-      onClick={saveProfile}
-      className="rounded-full bg-[#7BC47F] px-8 py-4 font-bold text-white transition hover:bg-[#69B56E]"
-    >
-      Сохранить
-    </button>
-
-  </div>
-
-</section>
-</>
-)}
-</>
-)}
-{activeTab === "items" && (
-<>
-        {/* MY ITEMS */}
-        <section
-  id="items"
-  className="mt-8 rounded-[32px] border border-black/5 bg-white p-8 shadow-sm"
->
-          <div className="mb-6 flex items-center justify-between">
-  <h2 className="text-3xl font-black">
-    Мои объявления
-  </h2>
-
-  <a
-    href="/add"
-    className="text-sm font-bold text-[#3F9E47]"
-  >
-    Добавить →
-  </a>
-</div>
-
-          {myItems.length === 0 ? (
-            <div className="rounded-2xl bg-[#F7F7F5] p-6 text-[#6B6B6B]">
-              У вас пока нет объявлений
+              <div className="min-w-0">
+                <div className="truncate text-base font-extrabold">{displayName}</div>
+                <div className="text-sm text-[#6B6B6B]">На сайте</div>
+              </div>
             </div>
-          ) : (
-           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {myItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="overflow-hidden rounded-[28px] border border-black/5 bg-[#F7F7F5] transition duration-300 hover:-translate-y-1 hover:shadow-xl"
-                >
-                  {item.image && (
-                    <img
-                      src={item.image}
-                      className="h-48 w-full object-cover"
-                    />
-                  )}
 
-                  <div className="p-5">
-                    <h3 className="text-xl font-black">
-                      {item.name}
-                    </h3>
-                    <div className="mt-3 flex items-center gap-2">
-  <span
-    className={`rounded-full px-3 py-1 text-xs font-bold ${
-      item.status === "paused"
-        ? "bg-yellow-100 text-yellow-700"
-        : "bg-[#7BC47F]/15 text-[#3F9E47]"
-    }`}
-  >
-    {item.status === "paused"
-      ? "На паузе"
-      : "Активно"}
-  </span>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <div className="rounded-xl bg-[#F7F7F5] px-3 py-2 text-xs text-[#6B6B6B]">
+                ID: {user.id.slice(0, 6)}
+              </div>
 
-  <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#6B6B6B]">
-    👁 {item.views || 0}
-  </span>
-</div>
+              <Link href={`/user/${user.id}`} className="text-xl text-[#6B6B6B]">
+                ›
+              </Link>
+            </div>
 
-                    <p className="mt-2 text-sm text-neutral-400">
-                      📍 {item.location}
-                    </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {emailVerified && (
+                <span className="rounded-full bg-[#E8F7EA] px-3 py-1 text-xs font-bold text-[#3F9E47]">
+                  Email
+                </span>
+              )}
 
-                    <div className="mt-4 text-2xl font-black">
-  {item.price} ₽
-</div>
+              {phoneVerified && (
+                <span className="rounded-full bg-[#E8F7EA] px-3 py-1 text-xs font-bold text-[#3F9E47]">
+                  Телефон
+                </span>
+              )}
+            </div>
+          </div>
 
-                    <div className="mt-6 flex gap-3">
-                      <a
-                        href={`/item/${item.id}`}
-                        className="flex-1 rounded-full bg-white px-4 py-3 text-center font-bold"
-                      >
-                        Открыть
-                      </a>
-<button
-  onClick={() =>
-    toggleItemStatus(
-      item.id,
-      item.status
-    )
-  }
-  className="rounded-full bg-white px-4 py-3 text-sm font-bold"
->
-  {item.status === "paused"
-    ? "▶"
-    : "⏸"}
-</button>
-                      <button
-                        onClick={() => deleteItem(item.id)}
-                        className="rounded-full bg-red-500 px-4 py-3 font-bold text-white"
-                      >
-                        ✕
-                      </button>
-                    </div>
+          <nav className="p-3">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`mb-1 flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
+                  activeTab === item.id
+                    ? "bg-[#E8F7EA] text-[#3F9E47]"
+                    : "text-[#333333] hover:bg-[#F7F7F5]"
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <span className="w-5 text-center text-lg text-[#6B6B6B]">{item.icon}</span>
+                  {item.label}
+                </span>
+
+                {"badge" in item && !!item.badge && (
+                  <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs text-white">
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+
+          <div className="p-5 pt-2">
+            <button
+              onClick={logout}
+              className="w-full rounded-2xl border border-black/10 bg-white px-5 py-3 text-sm font-bold transition hover:bg-[#F7F7F5]"
+            >
+              Выйти
+            </button>
+          </div>
+        </aside>
+
+        <section>
+          <ProfileHeader activeTab={activeTab} displayName={displayName} userId={user.id} />
+
+          {activeTab === "overview" && (
+            <>
+              <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <StatCard icon="▧" label="Мои объявления" value={myItems.length} caption="Активные" />
+                <StatCard icon="□" label="Бронирования" value={myBookings.length} caption="В этом месяце" />
+                <StatCard icon="✓" label="Завершенные" value={completedCount} caption="Всего" />
+                <StatCard icon="₽" label="Заработано" value={`${paidTotal.toLocaleString("ru-RU")} ₽`} caption="За все время" />
+              </div>
+
+              <DashboardSection title="Входящие бронирования" hrefLabel="Смотреть все" onClick={() => setActiveTab("bookings")}>
+                {pendingIncoming.length === 0 ? (
+                  <EmptyState text="Новых заявок пока нет" />
+                ) : (
+                  <div className="space-y-3">
+                    {pendingIncoming.slice(0, 3).map((booking) => (
+                      <IncomingBookingRow
+                        key={booking.id}
+                        booking={booking}
+                        getBookingDays={getBookingDays}
+                        getBookingTotal={getBookingTotal}
+                        formatDateRange={formatDateRange}
+                        updateBookingStatus={updateBookingStatus}
+                      />
+                    ))}
                   </div>
+                )}
+              </DashboardSection>
+
+              <DashboardSection title="Мои объявления" hrefLabel="Смотреть все" onClick={() => setActiveTab("items")}>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  {myItems.slice(0, 3).map((item) => (
+                    <MiniItemCard key={item.id} item={item} />
+                  ))}
+
+                  <Link
+                    href="/add"
+                    className="flex min-h-[150px] flex-col items-center justify-center rounded-[20px] border border-dashed border-black/15 bg-white text-center transition hover:border-[#7BC47F] hover:bg-[#F8FFF8]"
+                  >
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full border border-black/10 text-3xl">
+                      +
+                    </span>
+                    <span className="mt-3 text-sm font-bold">Добавить объявление</span>
+                  </Link>
                 </div>
-              ))}
-            </div>
+              </DashboardSection>
+            </>
           )}
-        </section>
-</>
-)}
-{activeTab === "bookings" && (
-<>
-        {/* MY BOOKINGS */}
-        <section
-  className="mt-8 rounded-[32px] border border-black/5 bg-white p-8 shadow-sm"
->
-          <h2 className="mb-6 text-3xl font-black">
-  Мои бронирования
-</h2>
 
-          {myBookings.length === 0 ? (
-            <div className="rounded-2xl bg-[#F7F7F5] p-6 text-[#6B6B6B]">
-              Пока нет бронирований
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {myBookings.map((booking) => (
-                <div
-  key={booking.id}
-  className="grid gap-4 rounded-[24px] border border-black/5 p-4 md:grid-cols-[120px_1fr_auto]"
->
-  <img
-    src={booking.items?.image || "/hero.jpg"}
-    className="h-28 w-full rounded-2xl object-cover"
-    alt=""
-  />
+          {activeTab === "items" && (
+            <DashboardSection title="Мои объявления" hrefLabel="Добавить" href="/add">
+              {myItems.length === 0 ? (
+                <EmptyState text="У вас пока нет объявлений" />
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {myItems.map((item) => (
+                    <OwnerItemCard
+                      key={item.id}
+                      item={item}
+                      toggleItemStatus={toggleItemStatus}
+                      deleteItem={deleteItem}
+                    />
+                  ))}
+                </div>
+              )}
+            </DashboardSection>
+          )}
 
-  <div>
-    <h3 className="text-xl font-black">
-      {booking.items?.name}
-    </h3>
-                        
-                      <p className="mt-2 text-sm text-[#6B6B6B]">
-                        📅 {booking.start_date} → {booking.end_date}
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-2 text-sm">
-  <span className="rounded-full bg-[#F7F7F5] px-3 py-1 font-bold text-[#6B6B6B]">
-    {getBookingDays(booking)} дн.
-  </span>
-
-  <span className="rounded-full bg-[#F7F7F5] px-3 py-1 font-bold text-[#111111]">
-    {getBookingTotal(booking)} ₽
-  </span>
-
-  <span className="rounded-full bg-[#F7F7F5] px-3 py-1 font-bold text-[#6B6B6B]">
-    Оплата: {booking.payment_status || "не оплачено"}
-  </span>
-</div>
-
-                      <p className="mt-2">
-                        Статус:{" "}
-                        
-                        <span
-  className={`rounded-full px-3 py-1 text-sm font-bold ${
-    booking.status === "approved"
-      ? "bg-[#7BC47F] text-white"
-      : booking.status === "rejected"
-      ? "bg-red-100 text-red-600"
-      : "bg-yellow-100 text-yellow-700"
-  }`}
->
-  {booking.status === "approved"
-    ? "Подтверждена"
-    : booking.status === "rejected"
-    ? "Отклонена"
-    : "Ожидает"}
-</span>
-                      </p>
-                      <p className="mt-2">
-  Оплата:{" "}
-  <span className="font-bold">
-    {booking.payment_status}
-  </span>
-</p>{booking.payment_status !== "paid" && (
-  <button
-    onClick={() =>
-      handlePayment(booking.id)
-    }
-    className="mt-4 rounded-full bg-[#7BC47F] px-5 py-3 font-bold text-white"
-  >
-    Оплатить
-  </button>
-)}
-                    </div>
-
+          {activeTab === "bookings" && (
+            <>
+              <DashboardSection title="Мои бронирования">
+                {myBookings.length === 0 ? (
+                  <EmptyState text="Пока нет бронирований" />
+                ) : (
+                  <div className="space-y-3">
+                    {myBookings.map((booking) => (
+                      <MyBookingRow
+                        key={booking.id}
+                        booking={booking}
+                        getBookingDays={getBookingDays}
+                        getBookingTotal={getBookingTotal}
+                        formatDateRange={formatDateRange}
+                        handlePayment={handlePayment}
+                      />
+                    ))}
                   </div>
-                
-              ))}
-            </div>
+                )}
+              </DashboardSection>
+
+              <DashboardSection title="Входящие бронирования">
+                {incomingBookings.length === 0 ? (
+                  <EmptyState text="Пока нет запросов на ваши вещи" />
+                ) : (
+                  <div className="space-y-3">
+                    {incomingBookings.map((booking) => (
+                      <IncomingBookingRow
+                        key={booking.id}
+                        booking={booking}
+                        getBookingDays={getBookingDays}
+                        getBookingTotal={getBookingTotal}
+                        formatDateRange={formatDateRange}
+                        updateBookingStatus={updateBookingStatus}
+                      />
+                    ))}
+                  </div>
+                )}
+              </DashboardSection>
+            </>
+          )}
+
+          {activeTab === "settings" && (
+            <DashboardSection title="Настройки профиля">
+              <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
+                <div className="rounded-[22px] bg-[#F7F7F5] p-4">
+                  <div className="mx-auto flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-4xl font-extrabold text-white">
+                    {avatar ? (
+                      <img src={avatar} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      username[0]?.toUpperCase() || "П"
+                    )}
+                  </div>
+
+                  <label className="mt-4 flex cursor-pointer justify-center rounded-full bg-white px-4 py-3 text-sm font-bold transition hover:bg-[#EEEEEA]">
+                    {uploadingAvatar ? "Загружаем..." : "Загрузить фото"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => uploadAvatar(e.target.files?.[0] || null)}
+                      className="hidden"
+                      disabled={uploadingAvatar}
+                    />
+                  </label>
+
+                  <p className="mt-3 text-center text-xs leading-relaxed text-[#6B6B6B]">
+                    Фото будет видно в профиле, карточках и сообщениях.
+                  </p>
+                </div>
+
+                <div className="grid gap-4">
+                  <label className="grid gap-2 text-sm font-bold">
+                    Имя
+                    <input
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Как вас зовут"
+                      className="w-full rounded-2xl bg-[#F7F7F5] p-4 font-normal outline-none"
+                    />
+                  </label>
+
+                  <label className="grid gap-2 text-sm font-bold">
+                    Телефон
+                    <input
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+7 999 123 45 67"
+                      className="w-full rounded-2xl bg-[#F7F7F5] p-4 font-normal outline-none"
+                    />
+                  </label>
+
+                  <label className="grid gap-2 text-sm font-bold">
+                    Местоположение
+                    <input
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder="Россия, Краснодар"
+                      className="w-full rounded-2xl bg-[#F7F7F5] p-4 font-normal outline-none"
+                    />
+                  </label>
+
+                  <button
+                    onClick={saveProfile}
+                    disabled={savingProfile || uploadingAvatar}
+                    className="w-fit rounded-full bg-[#7BC47F] px-7 py-3 text-sm font-bold text-white transition hover:bg-[#69B56E] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {savingProfile ? "Сохраняем..." : "Сохранить"}
+                  </button>
+                </div>
+              </div>
+            </DashboardSection>
+          )}
+
+          {["messages", "favorites", "wallet", "reviews"].includes(activeTab) && (
+            <DashboardSection title={getTabTitle(activeTab)}>
+              <EmptyState text="Раздел скоро будет доступен в личном кабинете" />
+            </DashboardSection>
           )}
         </section>
-        </>
-)}
-
-        {/* INCOMING BOOKINGS */}
-        <section
-  id="bookings"
-  className="mt-8 rounded-[32px] border border-black/5 bg-white p-8 shadow-sm"
->
-          <h2 className="mb-6 text-3xl font-bold">
-            Брони моих вещей
-          </h2>
-
-          {incomingBookings.length === 0 ? (
-            <div className="rounded-2xl bg-[#F7F7F5] p-6 text-[#6B6B6B]">
-              Пока нет запросов
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {incomingBookings.map((booking) => (
-  <div
-    key={booking.id}
-    className={`grid gap-4 rounded-[24px] border p-4 transition duration-300 hover:shadow-lg md:grid-cols-[120px_1fr_auto] ${
-  booking.status === "pending"
-    ? "border-[#7BC47F]/30 bg-[#F8FFF8]"
-    : "border-black/5 bg-white"
-}`}
-  >
-    <img
-      src={booking.items?.image || "/hero.jpg"}
-      className="h-28 w-full rounded-2xl object-cover"
-      alt=""
-    />
-
-    <div>
-      <h3 className="text-xl font-black">
-        {booking.items?.name}
-      </h3>
-
-      <p className="mt-2 text-sm text-[#6B6B6B]">
-        📅 {booking.start_date} → {booking.end_date}
-      </p>
-
-      <div className="mt-3">
-        <span
-          className={`rounded-full px-3 py-1 text-sm font-bold ${
-            booking.status === "approved"
-              ? "bg-[#7BC47F] text-white"
-              : booking.status === "rejected"
-              ? "bg-red-100 text-red-600"
-              : "bg-yellow-100 text-yellow-700"
-          }`}
-        >
-          {booking.status === "approved"
-            ? "Подтверждена"
-            : booking.status === "rejected"
-            ? "Отклонена"
-            : "Ожидает"}
-        </span>
-      </div>
-    </div>
-
-    {booking.status === "pending" && (
-      <div className="flex flex-col justify-center gap-3">
-        <button
-          onClick={() =>
-            updateBookingStatus(booking.id, "approved")
-          }
-          className="rounded-full bg-[#7BC47F] px-5 py-3 font-bold text-white shadow-lg shadow-[#7BC47F]/20 transition hover:scale-[1.02]"
-        >
-          Подтвердить
-        </button>
-
-        <button
-          onClick={() =>
-            updateBookingStatus(booking.id, "rejected")
-          }
-          className="flex flex-col gap-4 rounded-[24px] border border-black/5 bg-white p-4 transition duration-300 hover:shadow-lg md:flex-row md:items-center"
-        >
-          Отклонить
-        </button>
-      </div>
-    )}
-  </div>
-))}
-            </div>
-          )}
-        </section>
-</section>
       </div>
     </main>
+  );
+}
+
+function getTabTitle(tab: Tab) {
+  const titles: Record<Tab, string> = {
+    overview: "Обзор",
+    items: "Мои объявления",
+    bookings: "Бронирования",
+    messages: "Сообщения",
+    favorites: "Избранное",
+    wallet: "Кошелек",
+    reviews: "Отзывы",
+    settings: "Настройки",
+  };
+
+  return titles[tab];
+}
+
+function getTabDescription(tab: Tab, displayName: string) {
+  const descriptions: Record<Tab, string> = {
+    overview: `Добро пожаловать, ${displayName}! Вот что происходит с вашими объявлениями.`,
+    items: "Управляйте своими объявлениями, статусом и заявками.",
+    bookings: "Следите за своими бронями и входящими заявками.",
+    messages: "Диалоги с владельцами и арендаторами.",
+    favorites: "Сохраненные вещи для будущей аренды.",
+    wallet: "Баланс, выплаты и история платежей.",
+    reviews: "Отзывы о вас и ваших вещах.",
+    settings: "Обновите имя, телефон, местоположение и аватар.",
+  };
+
+  return descriptions[tab];
+}
+
+function ProfileHeader({
+  activeTab,
+  displayName,
+  userId,
+}: {
+  activeTab: Tab;
+  displayName: string;
+  userId: string;
+}) {
+  return (
+    <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-start">
+      <div>
+        <h1 className="text-4xl font-extrabold">{getTabTitle(activeTab)}</h1>
+        <p className="mt-3 max-w-2xl text-base text-[#6B6B6B]">
+          {getTabDescription(activeTab, displayName)}
+        </p>
+      </div>
+
+      <Link
+        href={`/user/${userId}`}
+        className="rounded-2xl border border-black/10 bg-white px-5 py-3.5 text-sm font-bold shadow-sm transition hover:bg-[#F7F7F5]"
+      >
+        Посмотреть профиль ↗
+      </Link>
+    </div>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  caption,
+}: {
+  icon: string;
+  label: string;
+  value: string | number;
+  caption: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-black/5 bg-white p-5 shadow-sm">
+      <div className="flex items-start gap-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#E8F7EA] text-2xl text-[#3F9E47]">
+          {icon}
+        </div>
+        <div>
+          <div className="text-sm text-[#6B6B6B]">{label}</div>
+          <div className="mt-1 text-2xl font-extrabold">{value}</div>
+          <div className="mt-1 text-sm text-[#6B6B6B]">{caption}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DashboardSection({
+  title,
+  children,
+  href,
+  hrefLabel,
+  onClick,
+}: {
+  title: string;
+  children: React.ReactNode;
+  href?: string;
+  hrefLabel?: string;
+  onClick?: () => void;
+}) {
+  return (
+    <section className="mt-5 rounded-[24px] border border-black/5 bg-white p-5 shadow-sm lg:p-6">
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <h2 className="text-xl font-extrabold">{title}</h2>
+
+        {href ? (
+          <Link href={href} className="text-sm font-bold text-[#3F9E47]">
+            {hrefLabel}
+          </Link>
+        ) : onClick ? (
+          <button onClick={onClick} className="text-sm font-bold text-[#3F9E47]">
+            {hrefLabel}
+          </button>
+        ) : null}
+      </div>
+
+      {children}
+    </section>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="rounded-2xl bg-[#F7F7F5] px-5 py-4 text-sm text-[#6B6B6B]">
+      {text}
+    </div>
+  );
+}
+
+function IncomingBookingRow({
+  booking,
+  getBookingDays,
+  getBookingTotal,
+  formatDateRange,
+  updateBookingStatus,
+}: {
+  booking: any;
+  getBookingDays: (booking: any) => number;
+  getBookingTotal: (booking: any) => number;
+  formatDateRange: (booking: any) => string;
+  updateBookingStatus: (bookingId: string, status: string) => void;
+}) {
+  return (
+    <div className="grid gap-4 rounded-[20px] border border-[#7BC47F]/25 bg-[#F8FFF8] p-3 md:grid-cols-[110px_minmax(0,1fr)_160px] md:items-center">
+      <img
+        src={booking.items?.image || "/hero.jpg"}
+        alt=""
+        className="h-24 w-full rounded-2xl object-cover"
+      />
+
+      <div className="min-w-0">
+        <h3 className="line-clamp-1 text-base font-extrabold">
+          {booking.items?.name || "Объявление"}
+        </h3>
+        <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[#555555]">
+          <span>{formatDateRange(booking)}</span>
+          <span>{getBookingDays(booking)} дн.</span>
+          <span className="font-bold text-[#111111]">
+            {getBookingTotal(booking)} ₽
+          </span>
+        </div>
+        <span className="mt-3 inline-flex rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-700">
+          {booking.status === "pending" ? "Ожидает подтверждения" : booking.status}
+        </span>
+      </div>
+
+      {booking.status === "pending" && (
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => updateBookingStatus(booking.id, "approved")}
+            className="rounded-full bg-[#7BC47F] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#69B56E]"
+          >
+            Подтвердить
+          </button>
+          <button
+            onClick={() => updateBookingStatus(booking.id, "rejected")}
+            className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm font-bold transition hover:bg-[#F7F7F5]"
+          >
+            Отклонить
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MyBookingRow({
+  booking,
+  getBookingDays,
+  getBookingTotal,
+  formatDateRange,
+  handlePayment,
+}: {
+  booking: any;
+  getBookingDays: (booking: any) => number;
+  getBookingTotal: (booking: any) => number;
+  formatDateRange: (booking: any) => string;
+  handlePayment: (bookingId: string) => void;
+}) {
+  return (
+    <div className="grid gap-4 rounded-[20px] border border-black/5 bg-white p-3 md:grid-cols-[92px_minmax(0,1fr)_140px] md:items-center">
+      <img
+        src={booking.items?.image || "/hero.jpg"}
+        alt=""
+        className="h-20 w-full rounded-2xl object-cover"
+      />
+
+      <div>
+        <h3 className="line-clamp-1 text-base font-extrabold">
+          {booking.items?.name || "Объявление"}
+        </h3>
+        <div className="mt-2 flex flex-wrap gap-2 text-sm text-[#6B6B6B]">
+          <span>{formatDateRange(booking)}</span>
+          <span>{getBookingDays(booking)} дн.</span>
+          <span className="font-bold text-[#111111]">{getBookingTotal(booking)} ₽</span>
+        </div>
+      </div>
+
+      {booking.payment_status !== "paid" && (
+        <button
+          onClick={() => handlePayment(booking.id)}
+          className="rounded-full bg-[#7BC47F] px-4 py-2.5 text-sm font-bold text-white"
+        >
+          Оплатить
+        </button>
+      )}
+    </div>
+  );
+}
+
+function MiniItemCard({ item }: { item: any }) {
+  return (
+    <Link
+      href={`/item/${item.id}`}
+      className="grid min-h-[150px] grid-cols-[120px_1fr] overflow-hidden rounded-[20px] border border-black/5 bg-white transition hover:shadow-md"
+    >
+      <img
+        src={item.image || "/hero.jpg"}
+        alt=""
+        className="h-full min-h-[150px] w-full object-cover"
+      />
+      <div className="p-4">
+        <h3 className="line-clamp-2 text-sm font-extrabold">{item.name}</h3>
+        <div className="mt-2 text-base font-extrabold">{item.price} ₽</div>
+        <div className="text-xs text-[#6B6B6B]">/ день</div>
+        <div className="mt-3 text-xs text-[#3F9E47]">• Активно</div>
+      </div>
+    </Link>
+  );
+}
+
+function OwnerItemCard({
+  item,
+  toggleItemStatus,
+  deleteItem,
+}: {
+  item: any;
+  toggleItemStatus: (itemId: string, currentStatus: string) => void;
+  deleteItem: (id: string) => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-[22px] border border-black/5 bg-[#F7F7F5] transition hover:shadow-md">
+      {item.image && (
+        <img src={item.image} alt="" className="h-40 w-full object-cover" />
+      )}
+
+      <div className="p-4">
+        <h3 className="line-clamp-1 text-base font-extrabold">{item.name}</h3>
+        <div className="mt-2 flex items-center gap-2">
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-bold ${
+              item.status === "paused"
+                ? "bg-yellow-100 text-yellow-700"
+                : "bg-[#E8F7EA] text-[#3F9E47]"
+            }`}
+          >
+            {item.status === "paused" ? "На паузе" : "Активно"}
+          </span>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#6B6B6B]">
+            {item.views || 0} просмотров
+          </span>
+        </div>
+
+        <p className="mt-2 line-clamp-2 min-h-[40px] text-sm leading-snug text-[#6B6B6B]">
+          {item.location}
+        </p>
+
+        <div className="mt-4 text-xl font-extrabold">{item.price} ₽</div>
+        <div className="text-xs uppercase text-[#8D8D8D]">/ день</div>
+
+        <div className="mt-5 flex gap-2">
+          <Link
+            href={`/item/${item.id}`}
+            className="flex-1 rounded-full bg-white px-4 py-3 text-center text-sm font-bold"
+          >
+            Открыть
+          </Link>
+          <button
+            onClick={() => toggleItemStatus(item.id, item.status)}
+            className="rounded-full bg-white px-4 py-3 text-sm font-bold"
+          >
+            {item.status === "paused" ? "Вкл." : "Пауза"}
+          </button>
+          <button
+            onClick={() => deleteItem(item.id)}
+            className="rounded-full bg-red-50 px-4 py-3 text-sm font-bold text-red-600"
+          >
+            Удалить
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -175,11 +175,19 @@ console.log("SEND:", {
   ownerId,
   text
 });
+    const receiverId =
+  user.id === conversation.user1_id
+    ? conversation.user2_id
+    : conversation.user1_id;
+
     const { error } = await supabase.from("messages").insert([
       {
         conversation_id: conversation.id,
+        item_id: itemId,
         sender_id: user.id,
+        receiver_id: receiverId,
         text,
+        is_read: false,
       },
     ]);
 
@@ -187,10 +195,6 @@ console.log("SEND:", {
       console.log("SEND ERROR:", error);
       return;
     }
-    const receiverId =
-  user.id === conversation.user1_id
-    ? conversation.user2_id
-    : conversation.user1_id;
 
 await supabase
   .from("notifications")
@@ -220,14 +224,15 @@ await supabase
     }
   }, [conversation]);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }, [messages]);
+
   // ---------------- REALTIME (SAFE) ----------------
   useEffect(() => {
-  if (!conversation) return;
-  useEffect(() => {
-  messagesEndRef.current?.scrollIntoView({
-    behavior: "smooth",
-  });
-}, [messages]);
+    if (!conversation) return;
 
   const channel = supabase
     .channel(`messages-${conversation.id}`)

@@ -249,3 +249,31 @@ body {
 .react-datepicker__navigation {
   z-index: 20 !important;
 }
+
+.item-booking-calendar .react-datepicker__header {
+  padding-top: 8px !important;
+}
+
+.item-booking-calendar .react-datepicker__current-month {
+  margin-bottom: 12px !important;
+  font-size: 17px !important;
+}
+
+.item-booking-calendar .react-datepicker__day-name,
+.item-booking-calendar .react-datepicker__day {
+  height: 30px !important;
+  line-height: 30px !important;
+  font-size: 13px !important;
+}
+
+.item-booking-calendar .react-datepicker__navigation {
+  top: 11px !important;
+}
+
+.item-booking-calendar .react-datepicker__navigation--previous {
+  left: 8px !important;
+}
+
+.item-booking-calendar .react-datepicker__navigation--next {
+  right: 8px !important;
+}

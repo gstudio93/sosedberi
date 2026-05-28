@@ -67,14 +67,14 @@ export default function NotificationsPage() {
     await supabase
       .from("notifications")
       .update({
-        read: true,
+        is_is_is_read: true,
       })
       .eq("id", id);
 
     setNotifications((prev) =>
       prev.map((notification) =>
         notification.id === id
-          ? { ...notification, read: true }
+          ? { ...notification, is_is_is_read: true }
           : notification
       )
     );
@@ -100,7 +100,7 @@ export default function NotificationsPage() {
           <div className="rounded-full bg-white/10 px-4 py-2 text-sm">
             {
               notifications.filter(
-                (n) => !n.read
+                (n) => !n.is_read
               ).length
             }{" "}
             новых
@@ -132,7 +132,7 @@ export default function NotificationsPage() {
                     {notification.text}
                   </div>
 
-                  {!notification.read && (
+                  {!notification.is_read && (
                     <div className="h-3 w-3 rounded-full bg-green-400" />
                   )}
 

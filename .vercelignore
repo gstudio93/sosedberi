@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+
+.next
+node_modules
+dev-server*.log
+*.log
+lib.zip
