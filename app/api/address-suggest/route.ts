@@ -6,6 +6,14 @@ type AddressSuggestion = {
   address: string;
 };
 
+type ProviderResult = {
+  ok: boolean;
+  provider: "suggest" | "geocoder";
+  status?: number;
+  error?: string;
+  suggestions: AddressSuggestion[];
+};
+
 const yandexKey =
   process.env.YANDEX_MAPS_API_KEY || process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY;
 
@@ -19,21 +27,39 @@ export async function GET(request: Request) {
 
   if (!yandexKey) {
     return NextResponse.json(
-      { error: "Missing Yandex Maps API key", suggestions: [] },
-      { status: 500 }
+      {
+        error: "missing_yandex_key",
+        message: "В Vercel не задан Yandex Maps API key",
+        suggestions: [],
+      },
+      { status: 200 }
     );
   }
 
   const suggestResults = await fetchGeoSuggest(text);
-  const suggestions =
-    suggestResults && suggestResults.length > 0
-      ? suggestResults
+  const geocoderResults =
+    suggestResults.suggestions.length > 0
+      ? null
       : await fetchGeocoderSuggest(text);
 
-  return NextResponse.json({ suggestions: suggestions || [] });
+  const suggestions =
+    suggestResults.suggestions.length > 0
+      ? suggestResults.suggestions
+      : geocoderResults?.suggestions || [];
+
+  return NextResponse.json({
+    suggestions,
+    debug:
+      suggestions.length > 0
+        ? undefined
+        : {
+            suggest: suggestResults,
+            geocoder: geocoderResults,
+          },
+  });
 }
 
-async function fetchGeoSuggest(text: string): Promise<AddressSuggestion[] | null> {
+async function fetchGeoSuggest(text: string): Promise<ProviderResult> {
   try {
     const url = new URL("https://suggest-maps.yandex.ru/v1/suggest");
     url.searchParams.set("apikey", yandexKey!);
@@ -46,12 +72,18 @@ async function fetchGeoSuggest(text: string): Promise<AddressSuggestion[] | null
     const response = await fetchWithTimeout(url.toString());
 
     if (!response.ok) {
-      return null;
+      return {
+        ok: false,
+        provider: "suggest",
+        status: response.status,
+        error: await safeResponseText(response),
+        suggestions: [],
+      };
     }
 
     const data = await response.json();
 
-    return (data.results || [])
+    const suggestions = (data.results || [])
       .map((item: any) => {
         const title = item.title?.text || item.title || "";
         const subtitle = item.subtitle?.text || item.subtitle || "";
@@ -65,12 +97,23 @@ async function fetchGeoSuggest(text: string): Promise<AddressSuggestion[] | null
         };
       })
       .filter((item: AddressSuggestion) => item.address);
-  } catch {
-    return null;
+
+    return {
+      ok: true,
+      provider: "suggest",
+      suggestions,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      provider: "suggest",
+      error: error instanceof Error ? error.message : "unknown_error",
+      suggestions: [],
+    };
   }
 }
 
-async function fetchGeocoderSuggest(text: string): Promise<AddressSuggestion[] | null> {
+async function fetchGeocoderSuggest(text: string): Promise<ProviderResult> {
   try {
     const url = new URL("https://geocode-maps.yandex.ru/1.x/");
     url.searchParams.set("apikey", yandexKey!);
@@ -82,13 +125,19 @@ async function fetchGeocoderSuggest(text: string): Promise<AddressSuggestion[] |
     const response = await fetchWithTimeout(url.toString());
 
     if (!response.ok) {
-      return null;
+      return {
+        ok: false,
+        provider: "geocoder",
+        status: response.status,
+        error: await safeResponseText(response),
+        suggestions: [],
+      };
     }
 
     const data = await response.json();
     const results = data.response?.GeoObjectCollection?.featureMember || [];
 
-    return results
+    const suggestions = results
       .map((item: any) => {
         const meta = item.GeoObject?.metaDataProperty?.GeocoderMetaData;
         const address = meta?.text || item.GeoObject?.name || "";
@@ -100,8 +149,19 @@ async function fetchGeocoderSuggest(text: string): Promise<AddressSuggestion[] |
         };
       })
       .filter((item: AddressSuggestion) => item.address);
-  } catch {
-    return null;
+
+    return {
+      ok: true,
+      provider: "geocoder",
+      suggestions,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      provider: "geocoder",
+      error: error instanceof Error ? error.message : "unknown_error",
+      suggestions: [],
+    };
   }
 }
 
@@ -116,5 +176,13 @@ async function fetchWithTimeout(url: string) {
     });
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+async function safeResponseText(response: Response) {
+  try {
+    return await response.text();
+  } catch {
+    return "response_text_unavailable";
   }
 }

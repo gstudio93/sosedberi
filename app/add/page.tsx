@@ -23,6 +23,7 @@ export default function AddItemPage() {
   const [description, setDescription] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsMessage, setSuggestionsMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const suggestRequestId = useRef(0);
@@ -43,11 +44,13 @@ export default function AddItemPage() {
 
     if (trimmedQuery.length < 3) {
       setSuggestions([]);
+      setSuggestionsMessage("");
       setSuggestionsLoading(false);
       return;
     }
 
     setSuggestionsLoading(true);
+    setSuggestionsMessage("");
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 6500);
@@ -62,11 +65,17 @@ export default function AddItemPage() {
 
       if (requestId === suggestRequestId.current) {
         setSuggestions(data.suggestions || []);
+        setSuggestionsMessage(
+          data.suggestions?.length
+            ? ""
+            : data.message || getSuggestDebugMessage(data.debug)
+        );
       }
     } catch (error) {
       console.log("SUGGEST ERROR:", error);
       if (requestId === suggestRequestId.current) {
         setSuggestions([]);
+        setSuggestionsMessage("Не удалось получить подсказки. Адрес можно ввести вручную.");
       }
     } finally {
       clearTimeout(timeout);
@@ -299,11 +308,17 @@ export default function AddItemPage() {
                   className="w-full rounded-2xl bg-[#F7F7F5] px-5 py-4 text-lg outline-none transition focus:ring-2 focus:ring-[#7BC47F]"
                 />
 
-                {(suggestions.length > 0 || suggestionsLoading) && (
+                {(suggestions.length > 0 || suggestionsLoading || suggestionsMessage) && (
                   <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-2xl border border-black/5 bg-white shadow-2xl">
                     {suggestionsLoading && suggestions.length === 0 && (
                       <div className="px-5 py-4 text-sm text-[#6B6B6B]">
                         Ищем адрес...
+                      </div>
+                    )}
+
+                    {!suggestionsLoading && suggestions.length === 0 && suggestionsMessage && (
+                      <div className="px-5 py-4 text-sm text-[#6B6B6B]">
+                        {suggestionsMessage}
                       </div>
                     )}
 
@@ -452,4 +467,23 @@ export default function AddItemPage() {
       </div>
     </main>
   );
+}
+
+function getSuggestDebugMessage(debug: any) {
+  const suggestStatus = debug?.suggest?.status;
+  const geocoderStatus = debug?.geocoder?.status;
+
+  if (suggestStatus === 403 || geocoderStatus === 403) {
+    return "Ключ Яндекс API не разрешает подсказки адресов. Адрес можно ввести вручную.";
+  }
+
+  if (suggestStatus === 401 || geocoderStatus === 401) {
+    return "Ключ Яндекс API не принят. Проверьте переменную в Vercel.";
+  }
+
+  if (debug?.suggest?.error || debug?.geocoder?.error) {
+    return "Яндекс не вернул адреса. Адрес можно ввести вручную.";
+  }
+
+  return "Адрес не найден. Попробуйте указать город и улицу точнее.";
 }
