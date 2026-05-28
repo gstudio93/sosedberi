@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import type { User } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
 
 type NavIcon = "catalog" | "heart" | "plus" | "chat" | "profile";
 
@@ -39,6 +42,27 @@ const links: {
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
+  const [user, setUser] = useState<User | null>(null);
+  const [authPromptOpen, setAuthPromptOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    supabase.auth.getUser().then(({ data }) => {
+      if (active) setUser(data.user);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-[120] border-t border-black/10 bg-white/95 px-2 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 shadow-2xl backdrop-blur-xl lg:hidden">
@@ -53,6 +77,12 @@ export default function MobileBottomNav() {
             <Link
               key={link.href}
               href={link.href}
+              onClick={(event) => {
+                if (link.href === "/profile" && !user) {
+                  event.preventDefault();
+                  setAuthPromptOpen(true);
+                }
+              }}
               className={`flex min-h-[58px] flex-col items-center justify-center rounded-2xl px-1.5 py-2 text-[11px] font-extrabold leading-none transition ${
                 active
                   ? "bg-[#7BC47F]/15 text-[#2F9A44]"
@@ -65,6 +95,48 @@ export default function MobileBottomNav() {
           );
         })}
       </div>
+
+      {authPromptOpen && (
+        <div className="fixed inset-0 z-[140] flex items-end bg-black/35 px-3 pb-[calc(92px+env(safe-area-inset-bottom))]">
+          <div className="mx-auto w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-[#111111]">
+                  Нужен аккаунт
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-[#6B6B6B]">
+                  Войдите или зарегистрируйтесь, чтобы открыть личный кабинет.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAuthPromptOpen(false)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F3F3F0] text-xl font-black text-[#111111]"
+                aria-label="Закрыть"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <Link
+                href="/login"
+                onClick={() => setAuthPromptOpen(false)}
+                className="rounded-full border border-black/10 px-5 py-3 text-center text-sm font-black text-[#111111]"
+              >
+                Войти
+              </Link>
+              <Link
+                href="/register"
+                onClick={() => setAuthPromptOpen(false)}
+                className="rounded-full bg-[#7BC47F] px-5 py-3 text-center text-sm font-black text-[#111111]"
+              >
+                Регистрация
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
