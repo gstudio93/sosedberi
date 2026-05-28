@@ -2,9 +2,11 @@
 
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import { supabase } from "../../../lib/supabase";
 import { useParams, useSearchParams } from "next/navigation";
 
@@ -20,6 +22,8 @@ console.log("ITEM ID:", itemId);
   const [user, setUser] = useState<any>(null);
   const [conversation, setConversation] = useState<any>(null);
   const [item, setItem] = useState<any>(null);
+  const [peerProfile, setPeerProfile] = useState<any>(null);
+  const [conversationProfiles, setConversationProfiles] = useState<Record<string, any>>({});
   useEffect(() => {
   console.log("CURRENT CONVERSATION:", conversation);
 }, [conversation]);
@@ -72,7 +76,39 @@ console.log("ITEM ID:", itemId);
   });
 
 setConversations(sortedConversations);
+
+const peerIds = Array.from(
+  new Set(
+    sortedConversations.map((conv) =>
+      conv.user1_id === currentUserId ? conv.user2_id : conv.user1_id
+    )
+  )
+);
+
+if (peerIds.length > 0) {
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, username, full_name, avatar, verified")
+    .in("id", peerIds);
+
+  const profileMap = (profiles || []).reduce((acc: Record<string, any>, profile) => {
+    acc[profile.id] = profile;
+    return acc;
+  }, {});
+
+  setConversationProfiles(profileMap);
 }
+}
+
+  async function loadPeerProfile(peerId: string) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, username, full_name, avatar, verified, location")
+      .eq("id", peerId)
+      .maybeSingle();
+
+    setPeerProfile(data);
+  }
   async function loadUser() {
     const { data } = await supabase.auth.getUser();
     setUser(data.user);
@@ -221,6 +257,14 @@ await supabase
   useEffect(() => {
     if (conversation) {
       loadMessages(conversation);
+      const peerId =
+        conversation.user1_id === user?.id
+          ? conversation.user2_id
+          : conversation.user1_id;
+
+      if (peerId) {
+        loadPeerProfile(peerId);
+      }
     }
   }, [conversation]);
 
@@ -256,6 +300,20 @@ await supabase
     supabase.removeChannel(channel);
   };
 }, [conversation]);
+  const peerId = useMemo(() => {
+    if (!conversation || !user) return ownerId || "";
+    return conversation.user1_id === user.id
+      ? conversation.user2_id
+      : conversation.user1_id;
+  }, [conversation, ownerId, user]);
+
+  const peerName =
+    peerProfile?.full_name ||
+    peerProfile?.username ||
+    peerProfile?.email ||
+    "Пользователь";
+
+  const peerInitial = peerName[0]?.toUpperCase() || "П";
   // ---------------- UI ----------------
   return (
   <main className="min-h-screen bg-[#F7F7F5] px-6 pb-10 pt-32 text-[#111111]">
@@ -280,7 +338,14 @@ await supabase
     Пока нет диалогов
   </div>
 )}
-    {conversations.map((conv) => (
+    {conversations.map((conv) => {
+      const convPeerId =
+        conv.user1_id === user?.id ? conv.user2_id : conv.user1_id;
+      const convPeer = conversationProfiles[convPeerId];
+      const convPeerName =
+        convPeer?.full_name || convPeer?.username || "Пользователь";
+
+      return (
   <a
     key={conv.id}
     href={`/chat/${conv.item_id}?owner=${
@@ -313,6 +378,10 @@ await supabase
         {conv.items?.name || "Объявление"}
       </div>
 
+      <div className="mt-1 truncate text-xs font-bold text-[#3F9E47]">
+        {convPeerName}
+      </div>
+
       <div className="mt-1 truncate text-sm text-[#6B6B6B]">
         {conv.messages?.length
   ? conv.messages[conv.messages.length - 1].text
@@ -336,7 +405,8 @@ await supabase
   </div>
 )}
   </a>
-))}
+)
+    })}
 
   </div>
 </div>
@@ -356,11 +426,29 @@ await supabase
   />
 )}
 
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#7BC47F] text-xl font-black text-white">
-        {ownerId?.[0]?.toUpperCase() || "U"}
+      <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-xl font-black text-white">
+        {peerProfile?.avatar ? (
+          <img src={peerProfile.avatar} alt="" className="h-full w-full object-cover" />
+        ) : (
+          peerInitial
+        )}
       </div>
 
       <div>
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <Link
+            href={peerId ? `/user/${peerId}` : "#"}
+            className="font-black transition hover:text-[#3F9E47]"
+          >
+            {peerName}
+          </Link>
+
+          {peerProfile?.verified && (
+            <span className="rounded-full bg-[#E8F7EA] px-2 py-1 text-xs font-bold text-[#3F9E47]">
+              Проверен
+            </span>
+          )}
+        </div>
         <div className="font-black">
   {item?.name || "Объявление"}
 </div>
@@ -371,6 +459,15 @@ await supabase
       </div>
 
     </div>
+
+    {peerId && (
+      <Link
+        href={`/user/${peerId}`}
+        className="rounded-full bg-[#E8F7EA] px-4 py-2 text-sm font-bold text-[#3F9E47] transition hover:bg-[#DDF3E0]"
+      >
+        Открыть профиль
+      </Link>
+    )}
 
     <div className="rounded-full bg-[#F7F7F5] px-4 py-2 text-sm font-bold text-[#6B6B6B]">
       Онлайн
