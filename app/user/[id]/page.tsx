@@ -78,7 +78,39 @@ export default function UserPage() {
       .eq("review_type", "renter")
       .order("created_at", { ascending: false });
 
-    setRenterReviews(renterReviewsData || []);
+    let renterReviewRows = renterReviewsData || [];
+
+    if (renterReviewRows.length === 0) {
+      const { data: renterBookings } = await supabase
+        .from("bookings")
+        .select("id")
+        .eq("renter_id", id)
+        .eq("status", "completed");
+
+      const bookingIds = (renterBookings || []).map((booking) => booking.id);
+
+      if (bookingIds.length > 0) {
+        const { data: fallbackRenterReviews } = await supabase
+          .from("reviews")
+          .select(
+            `
+            *,
+            profiles:author_id (
+              username,
+              full_name,
+              avatar
+            )
+          `
+          )
+          .eq("review_type", "renter")
+          .in("booking_id", bookingIds)
+          .order("created_at", { ascending: false });
+
+        renterReviewRows = fallbackRenterReviews || [];
+      }
+    }
+
+    setRenterReviews(renterReviewRows);
 
     if (ownerItems.length > 0) {
       const { data: completedBookings } = await supabase

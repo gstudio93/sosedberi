@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { subscribeUnreadMessages } from "@/lib/messages";
 
 type NavIcon = "catalog" | "heart" | "plus" | "chat" | "profile";
 
@@ -44,6 +45,7 @@ export default function MobileBottomNav() {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [authPromptOpen, setAuthPromptOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -64,6 +66,15 @@ export default function MobileBottomNav() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!user) {
+      setUnreadMessages(0);
+      return;
+    }
+
+    return subscribeUnreadMessages(supabase, user, setUnreadMessages);
+  }, [user]);
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-[120] border-t border-black/10 bg-white/95 px-2 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 shadow-2xl backdrop-blur-xl lg:hidden">
       <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
@@ -83,13 +94,18 @@ export default function MobileBottomNav() {
                   setAuthPromptOpen(true);
                 }
               }}
-              className={`flex min-h-[58px] flex-col items-center justify-center rounded-2xl px-1.5 py-2 text-[11px] font-extrabold leading-none transition ${
+              className={`relative flex min-h-[58px] flex-col items-center justify-center rounded-2xl px-1.5 py-2 text-[11px] font-extrabold leading-none transition ${
                 active
                   ? "bg-[#7BC47F]/15 text-[#2F9A44]"
                   : "text-[#6B6B6B]"
               }`}
             >
               <MobileIcon name={link.icon} active={active} />
+              {link.icon === "chat" && unreadMessages > 0 && (
+                <span className="absolute right-3 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black leading-none text-white">
+                  {unreadMessages > 9 ? "9+" : unreadMessages}
+                </span>
+              )}
               <span className="mt-1.5 truncate">{link.label}</span>
             </Link>
           );

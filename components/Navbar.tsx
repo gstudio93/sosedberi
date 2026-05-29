@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { RealtimeChannel, User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
+import { subscribeUnreadMessages } from "../lib/messages";
 
 type Notice = {
   id: string;
@@ -32,6 +33,7 @@ export default function Navbar() {
   const [notifications, setNotifications] = useState<Notice[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   const unreadNotifications = useMemo(
     () => notifications.filter((notice) => !notice.is_read).length,
@@ -110,6 +112,15 @@ export default function Navbar() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadMessages(0);
+      return;
+    }
+
+    return subscribeUnreadMessages(supabase, user, setUnreadMessages);
+  }, [user]);
 
   useEffect(() => {
     setNotificationsOpen(false);
@@ -261,7 +272,7 @@ export default function Navbar() {
 
               <Link
                 href="/messages"
-                className={`hidden items-center gap-2 rounded-full px-4 py-3 text-sm font-extrabold transition lg:inline-flex ${
+                className={`relative hidden items-center gap-2 rounded-full px-4 py-3 text-sm font-extrabold transition lg:inline-flex ${
                   pathname.startsWith("/messages") || pathname.startsWith("/chat")
                     ? "bg-[#111111] text-white"
                     : "bg-[#F7F7F5] text-[#111111] hover:bg-[#EEEEEA]"
@@ -269,6 +280,11 @@ export default function Navbar() {
               >
                 <span aria-hidden="true">💬</span>
                 Сообщения
+                {unreadMessages > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-black text-white">
+                    {unreadMessages > 9 ? "9+" : unreadMessages}
+                  </span>
+                )}
               </Link>
 
               <div className="relative">

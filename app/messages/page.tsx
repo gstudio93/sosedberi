@@ -12,6 +12,31 @@ export default function MessagesPage() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`messages-list-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "messages",
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        loadData
+      )
+      .subscribe();
+
+    const intervalId = window.setInterval(loadData, 15000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   async function loadData() {
     const { data } =
       await supabase.auth.getUser();

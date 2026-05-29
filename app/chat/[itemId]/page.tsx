@@ -223,7 +223,7 @@ if (currentUser) {
       is_read: true,
     })
     .eq("receiver_id", currentUser.id)
-    .eq("item_id", itemId);
+    .eq("conversation_id", conv.id);
 }
   }
 
@@ -324,6 +324,13 @@ await supabase
         console.log("REALTIME EVENT:", payload);
 
         setMessages((prev) => [...prev, payload.new]);
+
+        if (payload.new.receiver_id === user?.id) {
+          supabase
+            .from("messages")
+            .update({ is_read: true })
+            .eq("id", payload.new.id);
+        }
       }
     )
     .subscribe();
