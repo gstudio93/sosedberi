@@ -179,6 +179,7 @@ async function loadRelatedItems() {
         start_date: startDate.toISOString(),
         end_date: endDate.toISOString(),
         status: "pending",
+        payment_status: "unpaid",
       },
     ]);
 

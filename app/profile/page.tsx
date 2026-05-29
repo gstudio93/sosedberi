@@ -237,13 +237,25 @@ export default function ProfilePage() {
   }
 
   async function handlePayment(bookingId: string) {
-    await supabase
+    const booking = myBookings.find((item) => item.id === bookingId);
+    const confirmed = window.confirm(
+      "Это тестовая оплата для MVP. Деньги пока не списываются. Отметить бронь как оплаченную?"
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase
       .from("bookings")
       .update({
         payment_status: "paid",
         status: "handover_pending",
       })
       .eq("id", bookingId);
+
+    if (error) {
+      alert("Не удалось отметить оплату. Попробуйте еще раз.");
+      return;
+    }
 
     setMyBookings((prev) =>
       prev.map((booking) =>
@@ -256,6 +268,17 @@ export default function ProfilePage() {
           : booking
       )
     );
+
+    if (booking?.items?.owner_id) {
+      await supabase.from("notifications").insert([
+        {
+          user_id: booking.items.owner_id,
+          type: "payment",
+          text: `Оплата получена: ${booking.items?.name || "бронь"}`,
+          link: "/profile",
+        },
+      ]);
+    }
   }
 
   async function updateMyBooking(bookingId: string, updates: Record<string, string>) {
@@ -377,7 +400,7 @@ export default function ProfilePage() {
           type: "booking",
           text:
             status === "approved"
-              ? `Бронь подтверждена: ${booking.items?.name}`
+              ? `Бронь подтверждена: ${booking.items?.name}. Теперь можно оплатить аренду в личном кабинете.`
               : `Бронь отклонена: ${booking.items?.name}`,
           link: "/profile",
         },
@@ -617,6 +640,9 @@ export default function ProfilePage() {
 
   const displayName = username || user?.email?.split("@")[0] || "Пользователь";
   const pendingIncoming = incomingBookings.filter((booking) => booking.status === "pending");
+  const unpaidApprovedBookings = myBookings.filter(
+    (booking) => booking.status === "approved" && booking.payment_status !== "paid"
+  );
   const completedCount = [
     ...myBookings,
     ...incomingBookings,
@@ -748,6 +774,16 @@ export default function ProfilePage() {
 
           {activeTab === "overview" && (
             <>
+              {unpaidApprovedBookings.length > 0 && (
+                <PaymentReminder
+                  bookings={unpaidApprovedBookings}
+                  getBookingTotal={getBookingTotal}
+                  formatDateRange={formatDateRange}
+                  handlePayment={handlePayment}
+                  openBookings={() => setActiveTab("bookings")}
+                />
+              )}
+
               <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <StatCard icon="▧" label="Мои объявления" value={myItems.length} caption="Активные" />
                 <StatCard icon="□" label="Бронирования" value={myBookings.length} caption="В этом месяце" />
@@ -1017,6 +1053,63 @@ function ProfileHeader({
         Посмотреть профиль ↗
       </Link>
     </div>
+  );
+}
+
+function PaymentReminder({
+  bookings,
+  getBookingTotal,
+  formatDateRange,
+  handlePayment,
+  openBookings,
+}: {
+  bookings: any[];
+  getBookingTotal: (booking: any) => number;
+  formatDateRange: (booking: any) => string;
+  handlePayment: (bookingId: string) => void;
+  openBookings: () => void;
+}) {
+  const firstBooking = bookings[0];
+
+  return (
+    <section className="mb-5 rounded-[28px] border border-[#BDEBC1] bg-[#F5FFF6] p-5 shadow-sm">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase text-[#3F9E47]">
+            Ожидает оплаты
+          </div>
+          <h2 className="mt-1 text-2xl font-black">
+            {firstBooking?.items?.name || "Подтвержденная бронь"}
+          </h2>
+          <p className="mt-1 text-sm text-[#6B6B6B]">
+            Владелец подтвердил заявку. Чтобы перейти к передаче вещи, отметьте тестовую оплату.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2 text-sm">
+            <span className="rounded-full bg-white px-3 py-1 font-bold">
+              {formatDateRange(firstBooking)}
+            </span>
+            <span className="rounded-full bg-white px-3 py-1 font-bold">
+              {getBookingTotal(firstBooking).toLocaleString("ru-RU")} ₽
+            </span>
+            {bookings.length > 1 && (
+              <button
+                onClick={openBookings}
+                className="rounded-full bg-white px-3 py-1 font-bold text-[#3F9E47]"
+              >
+                Еще {bookings.length - 1}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <button
+          onClick={() => handlePayment(firstBooking.id)}
+          className="rounded-full bg-[#7BC47F] px-6 py-4 text-sm font-black text-white shadow-sm transition hover:bg-[#69B56E]"
+        >
+          Оплатить аренду
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -1295,9 +1388,9 @@ function MyBookingRow({
       {booking.status === "approved" && booking.payment_status !== "paid" && (
         <button
           onClick={() => handlePayment(booking.id)}
-          className="rounded-full bg-[#7BC47F] px-4 py-2.5 text-sm font-bold text-white"
+          className="rounded-full bg-[#7BC47F] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#69B56E]"
         >
-          Оплатить
+          Оплатить аренду
         </button>
       )}
       {booking.status === "pending" && (
