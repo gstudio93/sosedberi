@@ -183,27 +183,6 @@ export default function MapPage() {
         </div>
       </section>
 
-      <style jsx global>{`
-        .sosed-map-pin {
-          width: 56px;
-          height: 56px;
-          padding: 0;
-          border: 4px solid #ffffff;
-          border-radius: 999px;
-          background: #ffffff;
-          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
-          cursor: pointer;
-          overflow: hidden;
-          transform: translateZ(0);
-        }
-
-        .sosed-map-pin img {
-          width: 100%;
-          height: 100%;
-          display: block;
-          object-fit: cover;
-        }
-      `}</style>
     </main>
   );
 }
