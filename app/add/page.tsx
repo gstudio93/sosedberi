@@ -42,6 +42,7 @@ function AddItemContent() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionsMessage, setSuggestionsMessage] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loadingItem, setLoadingItem] = useState(!!editId);
   const suggestRequestId = useRef(0);
@@ -179,31 +180,63 @@ function AddItemContent() {
     if (!files.length) return;
 
     setUploading(true);
+    setUploadError("");
     const uploadedUrls: string[] = [];
 
-    for (const file of files) {
-      const fileName = `${crypto.randomUUID()}-${file.name}`;
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth.user;
 
-      const { error } = await supabase.storage
-        .from("items")
-        .upload(fileName, file);
-
-      if (error) {
-        console.log(error);
-        alert("Не удалось загрузить фото. Проверьте Storage bucket items.");
-        setUploading(false);
-        return;
-      }
-
-      const { data } = supabase.storage
-        .from("items")
-        .getPublicUrl(fileName);
-
-      uploadedUrls.push(data.publicUrl);
+    if (!user) {
+      setUploadError("Войдите в аккаунт, чтобы загрузить фото.");
+      setUploading(false);
+      return;
     }
 
-    setImages((current) => [...current, ...uploadedUrls]);
-    setUploading(false);
+    try {
+      for (const file of files) {
+        if (!file.type.startsWith("image/")) {
+          setUploadError("Можно загружать только изображения.");
+          continue;
+        }
+
+        if (file.size > 10 * 1024 * 1024) {
+          setUploadError("Фото слишком большое. Максимальный размер — 10 МБ.");
+          continue;
+        }
+
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const fileName = `${user.id}/${crypto.randomUUID()}-${safeName}`;
+
+        const { error } = await supabase.storage
+          .from("items")
+          .upload(fileName, file, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+
+        if (error) {
+          console.log("ITEM PHOTO UPLOAD ERROR:", error);
+          setUploadError(error.message || "Не удалось загрузить фото. Проверьте Storage bucket items.");
+          setUploading(false);
+          return;
+        }
+
+        const { data } = supabase.storage
+          .from("items")
+          .getPublicUrl(fileName);
+
+        uploadedUrls.push(data.publicUrl);
+      }
+
+      if (uploadedUrls.length > 0) {
+        setImages((current) => [...current, ...uploadedUrls]);
+      }
+    } catch (error) {
+      console.log("ITEM PHOTO UPLOAD EXCEPTION:", error);
+      setUploadError("Не удалось загрузить фото. Попробуйте выбрать другое изображение.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   function makeMainImage(selectedImage: string) {
@@ -489,6 +522,11 @@ function AddItemContent() {
                   Лучше добавить 3-5 фото с разных ракурсов
                 </span>
               </label>
+              {uploadError && (
+                <div className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+                  {uploadError}
+                </div>
+              )}
               {images.length > 0 && (
                 <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {images.map((img, index) => (
