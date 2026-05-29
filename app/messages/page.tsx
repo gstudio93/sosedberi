@@ -3,6 +3,26 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
+function parseChatLink(link?: string | null) {
+  if (!link?.startsWith("/chat/")) return null;
+
+  try {
+    const url = new URL(link, "https://sosedberi.local");
+    const itemId = url.pathname.split("/chat/")[1];
+    const peerId = url.searchParams.get("owner");
+
+    if (!itemId || !peerId) return null;
+
+    return {
+      itemId,
+      peerId,
+      href: `${url.pathname}${url.search}`,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function MessagesPage() {
   const [user, setUser] = useState<any>(null);
   const [conversations, setConversations] =
@@ -120,6 +140,74 @@ export default function MessagesPage() {
       conversationMap.set(conv.id, current);
     });
 
+    const { data: messageNotifications } = await supabase
+      .from("notifications")
+      .select("id, text, link, created_at, is_read")
+      .eq("user_id", currentUser.id)
+      .eq("type", "message")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    const notificationChatLinks = (messageNotifications || [])
+      .map((notice: any) => {
+        const parsed = parseChatLink(notice.link);
+        return parsed ? { notice, ...parsed } : null;
+      })
+      .filter(Boolean) as {
+      notice: any;
+      itemId: string;
+      peerId: string;
+      href: string;
+    }[];
+
+    const missingItemIds = Array.from(
+      new Set(
+        notificationChatLinks
+          .map((entry) => entry.itemId)
+          .filter((itemId) => !Array.from(conversationMap.values()).some((conv) => conv.item_id === itemId))
+      )
+    );
+
+    const itemsById: Record<string, any> = {};
+
+    if (missingItemIds.length > 0) {
+      const { data: notificationItems } = await supabase
+        .from("items")
+        .select("*")
+        .in("id", missingItemIds);
+
+      (notificationItems || []).forEach((item: any) => {
+        itemsById[item.id] = item;
+      });
+    }
+
+    notificationChatLinks.forEach(({ notice, itemId, peerId, href }) => {
+      const existing = Array.from(conversationMap.values()).find(
+        (conv) => conv.item_id === itemId && [conv.user1_id, conv.user2_id].includes(peerId)
+      );
+
+      if (existing) return;
+
+      conversationMap.set(`notice-${notice.id}`, {
+        id: `notice-${notice.id}`,
+        item_id: itemId,
+        user1_id: currentUser.id,
+        user2_id: peerId,
+        href,
+        items: itemsById[itemId],
+        messages: [
+          {
+            id: notice.id,
+            text: notice.text || "Новое сообщение",
+            created_at: notice.created_at,
+            sender_id: peerId,
+            receiver_id: currentUser.id,
+            is_read: !!notice.is_read,
+          },
+        ],
+      });
+    });
+
     const sorted = Array.from(conversationMap.values())
       .map((conv) => ({
         ...conv,
@@ -197,11 +285,14 @@ export default function MessagesPage() {
             return (
               <a
                 key={conv.id}
-                href={`/chat/${conv.item_id}?owner=${
-                  conv.user1_id === user?.id
-                    ? conv.user2_id
-                    : conv.user1_id
-                }`}
+                href={
+                  conv.href ||
+                  `/chat/${conv.item_id}?owner=${
+                    conv.user1_id === user?.id
+                      ? conv.user2_id
+                      : conv.user1_id
+                  }`
+                }
                 className="flex items-center gap-5 border-b border-black/5 p-5 transition hover:bg-[#F7F7F5]"
               >
 
