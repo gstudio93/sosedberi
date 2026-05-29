@@ -35,7 +35,6 @@ export default function MapPage() {
   const router = useRouter();
   const [items, setItems] = useState<MapItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<MapItem | null>(null);
-  const [markerLayout, setMarkerLayout] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -105,15 +104,7 @@ export default function MapPage() {
                   zoom: mapItems.length ? 12 : 10,
                   controls: ["zoomControl", "geolocationControl"],
                 }}
-                modules={["templateLayoutFactory", "control.ZoomControl", "control.GeolocationControl"]}
-                onLoad={(ymaps: any) => {
-                  if (markerLayout) return;
-                  setMarkerLayout(
-                    ymaps.templateLayoutFactory.createClass(
-                      '<button class="sosed-map-pin" type="button"><img src="$[properties.image]" alt="" /></button>',
-                    ),
-                  );
-                }}
+                modules={["control.ZoomControl", "control.GeolocationControl"]}
                 width="100%"
                 height="100%"
               >
@@ -124,21 +115,12 @@ export default function MapPage() {
                     properties={{
                       image: item.image || FALLBACK_IMAGE,
                     }}
-                    options={
-                      (markerLayout
-                        ? ({
-                            iconLayout: markerLayout,
-                            iconShape: {
-                              type: "Circle",
-                              coordinates: [0, 0],
-                              radius: 28,
-                            },
-                            iconOffset: [-28, -28],
-                          } as any)
-                        : {
-                            preset: "islands#greenCircleDotIcon",
-                          }) as any
-                    }
+                    options={{
+                      iconLayout: "default#image",
+                      iconImageHref: item.image || FALLBACK_IMAGE,
+                      iconImageSize: [52, 52],
+                      iconImageOffset: [-26, -26],
+                    }}
                     onClick={() => setSelectedItem(item)}
                   />
                 ))}
