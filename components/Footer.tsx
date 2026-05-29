@@ -19,7 +19,6 @@ const footerGroups = [
       { href: "/add", label: "Сдать вещь" },
       { href: "/profile", label: "Мои объявления" },
       { href: "/messages", label: "Сообщения" },
-      { href: "/map", label: "Карта" },
     ],
   },
   {

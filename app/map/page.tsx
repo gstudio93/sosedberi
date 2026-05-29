@@ -1,171 +1,37 @@
-"use client";
-
-import { Map, Placemark, YMaps } from "@pbe/react-yandex-maps";
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-
-type MapItem = {
-  id: string;
-  name: string | null;
-  price: number | string | null;
-  image: string | null;
-  location: string | null;
-  latitude: number | string | null;
-  longitude: number | string | null;
-};
-
-const MOSCOW_CENTER: [number, number] = [55.751244, 37.618423];
-const FALLBACK_IMAGE = "/hero.jpg";
-
-function toNumber(value: number | string | null) {
-  if (value === null || value === undefined || value === "") return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function formatPrice(value: number | string | null) {
-  if (value === null || value === undefined || value === "") return "Цена не указана";
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return `${value} ₽ / день`;
-  return `${parsed.toLocaleString("ru-RU")} ₽ / день`;
-}
+import Link from "next/link";
 
 export default function MapPage() {
-  const router = useRouter();
-  const [items, setItems] = useState<MapItem[]>([]);
-  const [selectedItem, setSelectedItem] = useState<MapItem | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    loadItems();
-  }, []);
-
-  async function loadItems() {
-    setIsLoading(true);
-
-    const { data } = await supabase
-      .from("items")
-      .select("id, name, price, image, location, latitude, longitude")
-      .not("latitude", "is", null)
-      .not("longitude", "is", null)
-      .order("created_at", { ascending: false });
-
-    setItems(data || []);
-    setSelectedItem((data && data[0]) || null);
-    setIsLoading(false);
-  }
-
-  const mapItems = useMemo(
-    () =>
-      items
-        .map((item) => ({
-          ...item,
-          latitudeNumber: toNumber(item.latitude),
-          longitudeNumber: toNumber(item.longitude),
-        }))
-        .filter((item) => item.latitudeNumber !== null && item.longitudeNumber !== null),
-    [items],
-  );
-
-  const center = useMemo<[number, number]>(() => {
-    if (!mapItems.length) return MOSCOW_CENTER;
-    return [mapItems[0].latitudeNumber!, mapItems[0].longitudeNumber!];
-  }, [mapItems]);
-
   return (
-    <main className="min-h-screen bg-[#f4f5f2] px-4 pb-24 pt-6 md:px-8 md:pb-10">
-      <section className="mx-auto max-w-[1520px]">
-        <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-[36px] font-black leading-none tracking-normal text-[#101010] md:text-[52px]">
-              Объявления рядом
-            </h1>
-            <p className="mt-3 text-[16px] text-[#5f635f] md:text-[20px]">
-              Выбирайте вещи по карте: нажмите на фото, чтобы посмотреть кратко, и откройте карточку товара.
-            </p>
-          </div>
-
-          <div className="rounded-full bg-white px-5 py-3 text-[14px] font-bold text-[#5f635f] shadow-sm ring-1 ring-black/5">
-            {isLoading ? "Загружаем карту" : `${mapItems.length} объявлений на карте`}
-          </div>
+    <main className="min-h-screen bg-[#f4f5f2] px-4 pb-24 pt-28 md:px-8 md:pb-16 md:pt-32">
+      <section className="mx-auto flex max-w-3xl flex-col items-center rounded-[32px] bg-white px-6 py-14 text-center shadow-[0_14px_40px_rgba(0,0,0,0.08)] ring-1 ring-black/5 md:px-12 md:py-18">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#7BC47F]/15 text-3xl">
+          ◦
         </div>
 
-        <div className="relative overflow-hidden rounded-[28px] bg-white shadow-[0_10px_35px_rgba(0,0,0,0.10)] ring-1 ring-black/5">
-          <div className="h-[calc(100dvh-250px)] min-h-[560px] md:h-[720px]">
-            <YMaps
-              query={{
-                apikey: process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY,
-              }}
-            >
-              <Map
-                key={center.join(",")}
-                defaultState={{
-                  center,
-                  zoom: mapItems.length ? 12 : 10,
-                  controls: ["zoomControl", "geolocationControl"],
-                }}
-                modules={["control.ZoomControl", "control.GeolocationControl"]}
-                width="100%"
-                height="100%"
-              >
-                {mapItems.map((item) => (
-                  <Placemark
-                    key={item.id}
-                    geometry={[item.latitudeNumber!, item.longitudeNumber!]}
-                    properties={{
-                      image: item.image || FALLBACK_IMAGE,
-                    }}
-                    options={{
-                      iconLayout: "default#image",
-                      iconImageHref: item.image || FALLBACK_IMAGE,
-                      iconImageSize: [52, 52],
-                      iconImageOffset: [-26, -26],
-                    }}
-                    onClick={() => setSelectedItem(item)}
-                  />
-                ))}
-              </Map>
-            </YMaps>
-          </div>
+        <h1 className="mt-6 text-[34px] font-black leading-none text-[#101010] md:text-[52px]">
+          Карта появится позже
+        </h1>
 
-          {selectedItem && (
-            <button
-              type="button"
-              onClick={() => router.push(`/item/${selectedItem.id}`)}
-              className="absolute bottom-4 left-4 right-4 flex items-center gap-3 rounded-[22px] bg-white p-3 text-left shadow-[0_16px_45px_rgba(0,0,0,0.18)] ring-1 ring-black/8 transition hover:-translate-y-0.5 hover:shadow-[0_20px_55px_rgba(0,0,0,0.22)] md:bottom-6 md:left-6 md:right-auto md:w-[380px]"
-            >
-              <img
-                src={selectedItem.image || FALLBACK_IMAGE}
-                alt={selectedItem.name || "Объявление"}
-                className="h-20 w-24 shrink-0 rounded-[16px] object-cover md:h-24 md:w-28"
-              />
+        <p className="mt-4 max-w-xl text-[16px] leading-relaxed text-[#666B66] md:text-[19px]">
+          Сейчас лучше искать вещи через каталог. Мы вернем карту, когда сделаем ее стабильной:
+          с объявлениями рядом, радиусом поиска и удобными карточками на маркерах.
+        </p>
 
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[20px] font-black leading-tight text-[#101010]">
-                  {selectedItem.name || "Без названия"}
-                </span>
-                <span className="mt-1 block truncate text-[14px] text-[#6a6d69]">
-                  {selectedItem.location || "Адрес не указан"}
-                </span>
-                <span className="mt-2 block text-[18px] font-black text-[#101010]">
-                  {formatPrice(selectedItem.price)}
-                </span>
-              </span>
-            </button>
-          )}
-
-          {!isLoading && !mapItems.length && (
-            <div className="absolute inset-x-4 top-6 rounded-[24px] bg-white p-5 text-center shadow-lg ring-1 ring-black/5 md:left-1/2 md:right-auto md:w-[420px] md:-translate-x-1/2">
-              <h2 className="text-[24px] font-black text-[#101010]">Пока нет объявлений с адресом</h2>
-              <p className="mt-2 text-[#6a6d69]">
-                Когда у объявления появятся координаты, оно сразу отобразится на карте.
-              </p>
-            </div>
-          )}
+        <div className="mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+          <Link
+            href="/"
+            className="rounded-full bg-[#7BC47F] px-7 py-4 text-center text-sm font-black text-white shadow-[0_12px_28px_rgba(123,196,127,0.28)] transition hover:bg-[#69B56E]"
+          >
+            Открыть каталог
+          </Link>
+          <Link
+            href="/add"
+            className="rounded-full border border-black/10 bg-white px-7 py-4 text-center text-sm font-black text-[#111111] transition hover:bg-[#F7F7F5]"
+          >
+            Сдать вещь
+          </Link>
         </div>
       </section>
-
     </main>
   );
 }
