@@ -326,8 +326,31 @@ export default function ProfilePage() {
     }
 
     const { data } = supabase.storage.from("avatars").getPublicUrl(fileName);
+    const publicUrl = data.publicUrl;
 
-    setAvatar(data.publicUrl);
+    const { error: profileError } = await supabase.from("profiles").upsert({
+      id: user.id,
+      username,
+      full_name: username,
+      avatar: publicUrl,
+      location,
+      phone,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (profileError) {
+      console.log(profileError);
+      alert("Фото загружено, но не удалось сохранить аватар в профиле.");
+      setUploadingAvatar(false);
+      return;
+    }
+
+    await supabase
+      .from("items")
+      .update({ owner_avatar: publicUrl })
+      .eq("owner_id", user.id);
+
+    setAvatar(publicUrl);
     setUploadingAvatar(false);
   }
 
