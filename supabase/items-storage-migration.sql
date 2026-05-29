@@ -6,8 +6,8 @@ values (
   'items',
   'items',
   true,
-  10485760,
-  array['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+  20971520,
+  array['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif']
 )
 on conflict (id) do update
 set

@@ -11,6 +11,25 @@ type Suggestion = {
   address: string;
 };
 
+const MAX_ITEM_PHOTO_SIZE = 20 * 1024 * 1024;
+
+function inferImageMimeType(fileName: string) {
+  const extension = fileName.split(".").pop()?.toLowerCase();
+
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+  if (extension === "png") return "image/png";
+  if (extension === "webp") return "image/webp";
+  if (extension === "gif") return "image/gif";
+  if (extension === "heic") return "image/heic";
+  if (extension === "heif") return "image/heif";
+
+  return "";
+}
+
+function isImageFile(file: File) {
+  return file.type.startsWith("image/") || Boolean(inferImageMimeType(file.name));
+}
+
 export default function AddItemPage() {
   return (
     <Suspense
@@ -194,16 +213,17 @@ function AddItemContent() {
 
     try {
       for (const file of files) {
-        if (!file.type.startsWith("image/")) {
+        if (!isImageFile(file)) {
           setUploadError("Можно загружать только изображения.");
           continue;
         }
 
-        if (file.size > 10 * 1024 * 1024) {
-          setUploadError("Фото слишком большое. Максимальный размер — 10 МБ.");
+        if (file.size > MAX_ITEM_PHOTO_SIZE) {
+          setUploadError("Фото слишком большое. Максимальный размер — 20 МБ.");
           continue;
         }
 
+        const contentType = file.type || inferImageMimeType(file.name) || "image/jpeg";
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
         const fileName = `${user.id}/${crypto.randomUUID()}-${safeName}`;
 
@@ -211,6 +231,7 @@ function AddItemContent() {
           .from("items")
           .upload(fileName, file, {
             cacheControl: "3600",
+            contentType,
             upsert: false,
           });
 
