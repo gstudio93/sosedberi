@@ -9,6 +9,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [isRegister, setIsRegister] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -18,6 +19,7 @@ export default function LoginPage() {
 
   async function signUp() {
     setLoading(true);
+    setMessage("");
 
     const { error } = await supabase.auth.signUp({
       email,
@@ -31,12 +33,12 @@ export default function LoginPage() {
       return;
     }
 
-    alert("Проверьте email для подтверждения аккаунта");
-    router.push("/");
+    setMessage("Мы отправили письмо для подтверждения. Проверьте входящие и папку Спам.");
   }
 
   async function signIn() {
     setLoading(true);
+    setMessage("");
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -51,6 +53,30 @@ export default function LoginPage() {
     }
 
     router.push("/");
+  }
+
+  async function resendConfirmation() {
+    if (!email.trim()) {
+      setMessage("Введите email, на который нужно отправить подтверждение.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: email.trim(),
+    });
+
+    setLoading(false);
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setMessage("Письмо отправлено повторно. Проверьте входящие и папку Спам.");
   }
 
   return (
@@ -132,6 +158,23 @@ export default function LoginPage() {
                 ? "Создать аккаунт"
                 : "Войти"}
           </button>
+
+          {message && (
+            <div className="rounded-2xl bg-[#F7F7F5] p-4 text-sm leading-relaxed text-[#555555]">
+              {message}
+            </div>
+          )}
+
+          {isRegister && (
+            <button
+              type="button"
+              onClick={resendConfirmation}
+              disabled={loading}
+              className="w-full text-sm font-bold text-[#3F9E47] disabled:opacity-60"
+            >
+              Отправить подтверждение еще раз
+            </button>
+          )}
 
           {!isRegister && (
             <button className="w-full text-sm text-[#6B6B6B]">
