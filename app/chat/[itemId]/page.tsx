@@ -28,6 +28,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [chatError, setChatError] = useState("");
   const messagesEndRef =
   useRef<HTMLDivElement | null>(null);
   const [conversations, setConversations] = useState<any[]>([]);
@@ -132,26 +133,44 @@ if (peerIds.length > 0) {
   async function loadUser() {
     const { data } = await supabase.auth.getUser();
     setUser(data.user);
-    if (data.user) {
-  loadConversations(data.user.id);
-  loadBookingContext(data.user.id);
-}
-    const { data: itemData } = await supabase
+    const currentUser = data.user;
+
+    if (currentUser) {
+      loadConversations(currentUser.id);
+      loadBookingContext(currentUser.id);
+    }
+
+    const { data: itemData, error: itemError } = await supabase
   .from("items")
   .select("*")
   .eq("id", itemId)
   .single();
 
+if (itemError) {
+  setChatError(`Не удалось загрузить объявление: ${itemError.message}`);
+  return;
+}
+
 setItem(itemData);
+
+if (currentUser && itemData) {
+  await getOrCreateConversation(currentUser, itemData.owner_id);
+}
   }
 
   // ---------------- CONVERSATION (FIXED) ----------------
-  async function getOrCreateConversation(currentUser: any) {
-  const peerUserId = ownerId || item?.owner_id;
+  async function getOrCreateConversation(currentUser: any, explicitPeerId?: string) {
+  setChatError("");
 
-  if (!currentUser || !itemId || !peerUserId) return null;
+  const peerUserId = explicitPeerId || ownerId || item?.owner_id;
+
+  if (!currentUser || !itemId || !peerUserId) {
+    setChatError("Не удалось определить собеседника для диалога.");
+    return null;
+  }
 
   if (currentUser.id === peerUserId) {
+    setChatError("Нельзя открыть диалог с самим собой.");
     return null;
   }
 
@@ -167,6 +186,7 @@ setItem(itemData);
 
   if (error) {
     console.log("CONV LOAD ERROR:", error);
+    setChatError(`Не удалось проверить диалог: ${error.message}`);
     return null;
   }
 
@@ -200,6 +220,7 @@ setItem(itemData);
       return repeated;
     }
 
+    setChatError(`Не удалось создать диалог: ${insertError.message}`);
     return null;
   }
 
@@ -259,7 +280,7 @@ if (currentUser) {
     const activeConversation = conversation || (await getOrCreateConversation(user));
 
     if (!activeConversation) {
-      alert("Не удалось открыть диалог. Обновите страницу и попробуйте еще раз.");
+      alert(chatError || "Не удалось открыть диалог. Обновите страницу и попробуйте еще раз.");
       setSending(false);
       return;
     }
@@ -282,10 +303,13 @@ if (currentUser) {
 
     if (error) {
       console.log("SEND ERROR:", error);
+      setChatError(`Не удалось отправить сообщение: ${error.message}`);
       alert(`Не удалось отправить сообщение: ${error.message}`);
       setSending(false);
       return;
     }
+
+    setChatError("");
 
     await supabase
       .from("conversations")
@@ -642,6 +666,11 @@ await supabase
 
   {/* INPUT */}
   <div className="border-t border-black/5 bg-white p-3 lg:p-5">
+    {chatError && (
+      <div className="mb-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+        {chatError}
+      </div>
+    )}
 
     <div className="flex gap-2 lg:gap-3">
 
