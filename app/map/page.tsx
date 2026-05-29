@@ -99,6 +99,7 @@ export default function MapPage() {
               }}
             >
               <Map
+                key={center.join(",")}
                 defaultState={{
                   center,
                   zoom: mapItems.length ? 12 : 10,
