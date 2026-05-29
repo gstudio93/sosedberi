@@ -311,12 +311,12 @@ function getTotalWithDeposit() {
             📍 {item.location}
           </p>
 
-          <div className="mt-10 overflow-hidden rounded-[32px] border border-black/5 bg-white shadow-sm">
-  <div className="grid gap-0 lg:grid-cols-[1fr_360px]">
+          <div className="mt-10 overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-sm lg:rounded-[32px]">
+  <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_360px]">
     {/* OWNER INFO */}
-    <div className="p-8">
-      <div className="flex items-start gap-4 lg:items-center lg:gap-5">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#7BC47F] text-2xl font-black text-white lg:h-20 lg:w-20 lg:text-4xl">
+    <div className="min-w-0 p-5 sm:p-6 lg:p-8">
+      <div className="flex min-w-0 items-center gap-3 sm:gap-4 lg:gap-5">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-2xl font-black text-white lg:h-20 lg:w-20 lg:text-4xl">
           {ownerProfile?.avatar ? (
             <img
               src={ownerProfile.avatar}
@@ -330,66 +330,67 @@ function getTotalWithDeposit() {
           )}
         </div>
 
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="text-sm text-[#6B6B6B]">
             Владелец
           </div>
 
           <a
             href={`/user/${item.owner_id}`}
-            className="max-w-[190px] truncate text-2xl font-black leading-tight lg:max-w-none lg:text-4xl"
+            className="block max-w-full truncate text-[26px] font-black leading-tight lg:text-4xl"
+            title={ownerProfile?.full_name || ownerProfile?.username || ownerProfile?.email || "Пользователь"}
           >
-            {ownerProfile?.full_name || "Пользователь"}
+            {ownerProfile?.full_name || ownerProfile?.username || ownerProfile?.email || "Пользователь"}
           </a>
         </div>
       </div>
 
-      <div className="mt-7 grid gap-3 text-base text-[#111111]">
+      <div className="mt-7 grid min-w-0 gap-3 text-[17px] text-[#111111] sm:text-base">
         {ownerProfile?.verified && (
-  <div className="flex items-start gap-3 text-base leading-snug">
-    <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
+  <div className="flex min-w-0 items-start gap-3 leading-snug">
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
       ✓
     </span>
 
-    <span>Проверенный профиль</span>
+    <span className="min-w-0">Проверенный профиль</span>
   </div>
 )}
 
 {ownerProfile?.phone_verified && (
-  <div className="flex items-start gap-3 text-base leading-snug">
-    <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
+  <div className="flex min-w-0 items-start gap-3 leading-snug">
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
       📱
     </span>
 
-    <span>Телефон подтверждён</span>
+    <span className="min-w-0">Телефон подтверждён</span>
   </div>
 )}
-        <div className="flex items-start gap-3 text-base leading-snug">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
+        <div className="flex min-w-0 items-start gap-3 leading-snug">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
             ✓
           </span>
-          <span>Профиль подтверждён</span>
+          <span className="min-w-0">Профиль подтверждён</span>
         </div>
 
-        <div className="flex items-start gap-3 text-base leading-snug">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
+        <div className="flex min-w-0 items-start gap-3 leading-snug">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
             💬
           </span>
-          <span>Быстро отвечает на сообщения</span>
+          <span className="min-w-0">Быстро отвечает на сообщения</span>
         </div>
 
-        <div className="flex items-start gap-3 text-base leading-snug">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
+        <div className="flex min-w-0 items-start gap-3 leading-snug">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
             📍
           </span>
-          <span>{item.location}</span>
+          <span className="min-w-0 break-words">{item.location}</span>
         </div>
 
-        <div className="flex items-start gap-3 text-base leading-snug">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
+        <div className="flex min-w-0 items-start gap-3 leading-snug">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
             🛡
           </span>
-          <span>
+          <span className="min-w-0">
             Сделка защищена правилами сервиса
           </span>
         </div>
