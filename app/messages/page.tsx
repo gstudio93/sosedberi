@@ -54,8 +54,10 @@ export default function MessagesPage() {
           *,
           items (*),
           messages (
+            id,
             text,
             created_at,
+            sender_id,
             receiver_id,
             is_read
           )
@@ -66,10 +68,59 @@ export default function MessagesPage() {
 
     if (error) {
       console.log(error);
-      return;
     }
 
-    const sorted = (convs || [])
+    const { data: messageRows, error: messagesError } = await supabase
+      .from("messages")
+      .select(`
+        *,
+        conversations (
+          *,
+          items (*)
+        )
+      `)
+      .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (messagesError) {
+      console.log("DIRECT MESSAGES LOAD ERROR:", messagesError);
+    }
+
+    const conversationMap = new Map<string, any>();
+
+    (convs || []).forEach((conv: any) => {
+      conversationMap.set(conv.id, {
+        ...conv,
+        messages: conv.messages || [],
+      });
+    });
+
+    (messageRows || []).forEach((message: any) => {
+      const conv = message.conversations;
+      if (!conv?.id) return;
+
+      const current = conversationMap.get(conv.id) || {
+        ...conv,
+        items: conv.items,
+        messages: [],
+      };
+
+      if (!current.messages.some((item: any) => item.id === message.id)) {
+        current.messages.push({
+          id: message.id,
+          text: message.text,
+          created_at: message.created_at,
+          sender_id: message.sender_id,
+          receiver_id: message.receiver_id,
+          is_read: message.is_read,
+        });
+      }
+
+      conversationMap.set(conv.id, current);
+    });
+
+    const sorted = Array.from(conversationMap.values())
       .map((conv) => ({
         ...conv,
         messages: (

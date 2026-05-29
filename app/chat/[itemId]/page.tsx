@@ -287,6 +287,11 @@ if (currentUser) {
       return;
     }
 
+    await supabase
+      .from("conversations")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", activeConversation.id);
+
 await supabase
   .from("notifications")
   .insert({
