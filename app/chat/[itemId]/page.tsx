@@ -17,8 +17,6 @@ export default function ChatPage() {
   const itemId = params.itemId as string;
   const ownerId = searchParams.get("owner");
   const bookingId = searchParams.get("booking");
-  console.log("OWNER ID:", ownerId);
-console.log("ITEM ID:", itemId);
 
   const [user, setUser] = useState<any>(null);
   const [conversation, setConversation] = useState<any>(null);
@@ -27,11 +25,9 @@ console.log("ITEM ID:", itemId);
   const [bookingContext, setBookingContext] = useState<any>(null);
   const [conversationProfiles, setConversationProfiles] = useState<Record<string, any>>({});
   const [authPromptOpen, setAuthPromptOpen] = useState(false);
-  useEffect(() => {
-  console.log("CURRENT CONVERSATION:", conversation);
-}, [conversation]);
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
   const messagesEndRef =
   useRef<HTMLDivElement | null>(null);
   const [conversations, setConversations] = useState<any[]>([]);
@@ -150,14 +146,16 @@ setItem(itemData);
   }
 
   // ---------------- CONVERSATION (FIXED) ----------------
-  async function initConversation(currentUser: any) {
-    if (currentUser.id === ownerId) {
-  console.log("SELF CHAT BLOCKED");
-  return;
-}
-  if (!currentUser || !itemId || !ownerId) return;
+  async function getOrCreateConversation(currentUser: any) {
+  const peerUserId = ownerId || item?.owner_id;
 
-  const userIds = [currentUser.id, ownerId].sort();
+  if (!currentUser || !itemId || !peerUserId) return null;
+
+  if (currentUser.id === peerUserId) {
+    return null;
+  }
+
+  const userIds = [currentUser.id, peerUserId].sort();
 
   const { data: existing, error } = await supabase
     .from("conversations")
@@ -169,12 +167,12 @@ setItem(itemData);
 
   if (error) {
     console.log("CONV LOAD ERROR:", error);
-    return;
+    return null;
   }
 
   if (existing) {
     setConversation(existing);
-    return;
+    return existing;
   }
 
   const { data, error: insertError } = await supabase
@@ -189,10 +187,28 @@ setItem(itemData);
 
   if (insertError) {
     console.log("CONV INSERT ERROR:", insertError);
-    return;
+    const { data: repeated } = await supabase
+      .from("conversations")
+      .select("*")
+      .eq("item_id", itemId)
+      .eq("user1_id", userIds[0])
+      .eq("user2_id", userIds[1])
+      .maybeSingle();
+
+    if (repeated) {
+      setConversation(repeated);
+      return repeated;
+    }
+
+    return null;
   }
 
   setConversation(data);
+  return data;
+}
+
+  async function initConversation(currentUser: any) {
+    await getOrCreateConversation(currentUser);
 }
 
   // ---------------- LOAD MESSAGES ----------------
@@ -236,31 +252,38 @@ if (currentUser) {
 
     const messageText = text.trim();
 
-    if (!messageText || !conversation) return;
-console.log("SEND:", {
-  conversationId: conversation.id,
-  sender: user.id,
-  ownerId,
-  text: messageText
-});
-    const receiverId =
-  user.id === conversation.user1_id
-    ? conversation.user2_id
-    : conversation.user1_id;
+    if (!messageText || sending) return;
 
-    const { error } = await supabase.from("messages").insert([
+    setSending(true);
+
+    const activeConversation = conversation || (await getOrCreateConversation(user));
+
+    if (!activeConversation) {
+      alert("Не удалось открыть диалог. Обновите страницу и попробуйте еще раз.");
+      setSending(false);
+      return;
+    }
+
+    const receiverId =
+  user.id === activeConversation.user1_id
+    ? activeConversation.user2_id
+    : activeConversation.user1_id;
+
+    const { data: sentMessage, error } = await supabase.from("messages").insert([
       {
-        conversation_id: conversation.id,
+        conversation_id: activeConversation.id,
         item_id: itemId,
         sender_id: user.id,
         receiver_id: receiverId,
         text: messageText,
         is_read: false,
       },
-    ]);
+    ]).select("*").single();
 
     if (error) {
       console.log("SEND ERROR:", error);
+      alert(`Не удалось отправить сообщение: ${error.message}`);
+      setSending(false);
       return;
     }
 
@@ -272,7 +295,18 @@ await supabase
     text: "💬 Новое сообщение",
     link: `/chat/${itemId}?owner=${user.id}${bookingId ? `&booking=${bookingId}` : ""}`,
   });
+
+    if (sentMessage) {
+      setMessages((prev) =>
+        prev.some((message) => message.id === sentMessage.id)
+          ? prev
+          : [...prev, sentMessage]
+      );
+    }
+
+    loadConversations(user.id);
     setText("");
+    setSending(false);
   }
 
   // ---------------- INIT ----------------
@@ -284,7 +318,7 @@ await supabase
     if (user) {
       initConversation(user);
     }
-  }, [user]);
+  }, [user, ownerId, item?.owner_id]);
 
   useEffect(() => {
     if (conversation) {
@@ -323,7 +357,11 @@ await supabase
       (payload) => {
         console.log("REALTIME EVENT:", payload);
 
-        setMessages((prev) => [...prev, payload.new]);
+        setMessages((prev) =>
+          prev.some((message) => message.id === payload.new.id)
+            ? prev
+            : [...prev, payload.new]
+        );
 
         if (payload.new.receiver_id === user?.id) {
           supabase
@@ -618,10 +656,11 @@ await supabase
 
       <button
         onClick={sendMessage}
-        className="shrink-0 rounded-full bg-[#7BC47F] px-4 text-sm font-bold text-white transition hover:scale-[1.02] lg:px-8 lg:text-base"
+        disabled={sending}
+        className="shrink-0 rounded-full bg-[#7BC47F] px-4 text-sm font-bold text-white transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60 lg:px-8 lg:text-base"
       >
-        <span className="hidden sm:inline">Отправить</span>
-        <span className="sm:hidden">OK</span>
+        <span className="hidden sm:inline">{sending ? "Отправляем..." : "Отправить"}</span>
+        <span className="sm:hidden">{sending ? "..." : "OK"}</span>
       </button>
 
     </div>
