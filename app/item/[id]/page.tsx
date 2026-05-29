@@ -270,6 +270,14 @@ function getDepositAmount() {
 function getTotalWithDeposit() {
   return getTotalPrice() + getDepositAmount();
 }
+
+const latitude = Number(item.latitude);
+const longitude = Number(item.longitude);
+const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
+const mapSrc = hasCoordinates
+  ? `https://yandex.ru/map-widget/v1/?ll=${longitude},${latitude}&z=16&pt=${longitude},${latitude},pm2grm`
+  : `https://yandex.ru/map-widget/v1/?text=${encodeURIComponent(item.location || "Россия")}&z=15`;
+
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-6 pb-32 pt-28 text-[#111111] lg:pb-20 lg:pt-32">
             <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -405,13 +413,18 @@ function getTotalWithDeposit() {
     </div>
 
     {/* MAP */}
-    <div className="min-h-[260px] overflow-hidden bg-[#F7F7F5]">
+    <div className="relative min-h-[260px] overflow-hidden bg-[#F7F7F5]">
       <iframe
-        src={`https://yandex.ru/map-widget/v1/?text=${encodeURIComponent(
-          item.location || "Россия"
-        )}&z=13`}
+        src={mapSrc}
+        title={`Адрес передачи: ${item.location || "Россия"}`}
         className="h-full min-h-[320px] w-full border-0"
+        loading="lazy"
       />
+      {item.location && (
+        <div className="absolute bottom-4 left-4 right-4 rounded-2xl bg-white/95 px-4 py-3 text-sm font-bold text-[#111111] shadow-lg backdrop-blur">
+          📍 {item.location}
+        </div>
+      )}
     </div>
   </div>
 </div>
