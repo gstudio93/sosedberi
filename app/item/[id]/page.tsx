@@ -30,9 +30,6 @@ export default function ItemPage() {
   const [activeImage, setActiveImage] = useState("");
   const [galleryOpen, setGalleryOpen] = useState(false);
 
-  const [reviewText, setReviewText] = useState("");
-  const [rating, setRating] = useState(5);
-
   useEffect(() => {
     if (!id) return;
 
@@ -205,36 +202,6 @@ async function loadRelatedItems() {
     loadBookings();
     setStartDate(null);
     setEndDate(null);
-  }
-
-  async function handleReview() {
-    const { data } = await supabase.auth.getUser();
-    const user = data.user;
-
-    if (!user) {
-      alert("Войдите в аккаунт");
-      return;
-    }
-
-    const { error } = await supabase.from("reviews").insert([
-      {
-        item_id: item.id,
-        owner_id: item.owner_id,
-        author_id: user.id,
-        rating,
-        text: reviewText,
-      },
-    ]);
-
-    if (error) {
-      console.log(error);
-      alert("Ошибка отзыва");
-      return;
-    }
-
-    setReviewText("");
-    setRating(5);
-    loadReviews();
   }
 
   if (!item) {
@@ -440,35 +407,11 @@ const mapSrc = hasCoordinates
           <div className="mt-10 rounded-[32px] border border-black/5 bg-white p-8 shadow-sm">
             <h2 className="text-2xl font-black">Отзывы</h2>
 
+            <p className="mt-3 text-sm leading-relaxed text-[#6B6B6B]">
+              Отзыв о вещи может оставить только арендатор после завершения возврата.
+            </p>
+
             <div className="mt-6 space-y-4">
-              <select
-                value={rating}
-                onChange={(e) => setRating(Number(e.target.value))}
-                className="w-full rounded-2xl bg-[#F7F7F5] p-4 outline-none"
-              >
-                <option value={5}>★★★★★</option>
-                <option value={4}>★★★★</option>
-                <option value={3}>★★★</option>
-                <option value={2}>★★</option>
-                <option value={1}>★</option>
-              </select>
-
-              <textarea
-                value={reviewText}
-                onChange={(e) => setReviewText(e.target.value)}
-                placeholder="Напишите отзыв..."
-                className="min-h-[120px] w-full rounded-2xl bg-[#F7F7F5] p-4 outline-none"
-              />
-
-              <button
-                onClick={handleReview}
-                className="rounded-full bg-[#7BC47F] px-8 py-4 font-bold text-white transition hover:bg-[#69B56E]"
-              >
-                Оставить отзыв
-              </button>
-            </div>
-
-            <div className="mt-10 space-y-4">
               {reviews.length === 0 ? (
                 <div className="text-[#6B6B6B]">Пока нет отзывов</div>
               ) : (
