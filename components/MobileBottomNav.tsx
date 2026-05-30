@@ -44,6 +44,7 @@ export default function MobileBottomNav() {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [authPromptOpen, setAuthPromptOpen] = useState(false);
+  const [unreadChats, setUnreadChats] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -63,6 +64,39 @@ export default function MobileBottomNav() {
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadChats(0);
+      return;
+    }
+
+    let active = true;
+
+    const userId = user.id;
+
+    async function loadUnreadChats() {
+      const { count } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("type", "message")
+        .eq("is_read", false);
+
+      if (active) setUnreadChats(count || 0);
+    }
+
+    loadUnreadChats();
+
+    window.addEventListener("focus", loadUnreadChats);
+    document.addEventListener("visibilitychange", loadUnreadChats);
+
+    return () => {
+      active = false;
+      window.removeEventListener("focus", loadUnreadChats);
+      document.removeEventListener("visibilitychange", loadUnreadChats);
+    };
+  }, [pathname, user]);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-[120] border-t border-black/10 bg-white/95 px-2 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 shadow-2xl backdrop-blur-xl lg:hidden">
@@ -90,6 +124,11 @@ export default function MobileBottomNav() {
               }`}
             >
               <MobileIcon name={link.icon} active={active} />
+              {link.icon === "chat" && unreadChats > 0 && (
+                <span className="absolute right-3 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black leading-none text-white">
+                  {unreadChats > 9 ? "9+" : unreadChats}
+                </span>
+              )}
               <span className="mt-1.5 truncate">{link.label}</span>
             </Link>
           );
