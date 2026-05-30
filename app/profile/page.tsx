@@ -269,15 +269,28 @@ export default function ProfilePage() {
       )
     );
 
-    if (booking?.items?.owner_id) {
-      await supabase.from("notifications").insert([
-        {
-          user_id: booking.items.owner_id,
-          type: "payment",
-          text: `Оплата получена: ${booking.items?.name || "бронь"}`,
-          link: "/profile",
-        },
-      ]);
+    await createNotification(
+      booking?.items?.owner_id,
+      "payment",
+      `Оплата получена: ${booking?.items?.name || "бронь"}. Теперь можно подготовить акт передачи.`,
+      "/profile"
+    );
+  }
+
+  async function createNotification(userId: string | null | undefined, type: string, text: string, link = "/profile") {
+    if (!userId) return;
+
+    const { error } = await supabase.from("notifications").insert([
+      {
+        user_id: userId,
+        type,
+        text,
+        link,
+      },
+    ]);
+
+    if (error) {
+      console.log("NOTIFICATION ERROR:", error);
     }
   }
 
@@ -394,17 +407,14 @@ export default function ProfilePage() {
     );
 
     if (booking) {
-      await supabase.from("notifications").insert([
-        {
-          user_id: booking.renter_id,
-          type: "booking",
-          text:
-            status === "approved"
-              ? `Бронь подтверждена: ${booking.items?.name}. Теперь можно оплатить аренду в личном кабинете.`
-              : `Бронь отклонена: ${booking.items?.name}`,
-          link: "/profile",
-        },
-      ]);
+      await createNotification(
+        booking.renter_id,
+        "booking",
+        status === "approved"
+          ? `Бронь подтверждена: ${booking.items?.name}. Теперь можно оплатить аренду в личном кабинете.`
+          : `Бронь отклонена: ${booking.items?.name}`,
+        "/profile"
+      );
     }
   }
 
@@ -492,6 +502,22 @@ export default function ProfilePage() {
     await supabase.from("bookings").update({ status: nextStatus }).eq("id", booking.id);
     upsertLocalReport(data);
     patchBookingState(booking.id, { status: nextStatus });
+
+    if (reportType === "handover") {
+      await createNotification(
+        booking.renter_id,
+        "handover",
+        `Владелец отправил акт передачи: ${booking.items?.name || "вещь"}. Проверьте фото и подтвердите получение.`,
+        "/profile"
+      );
+    } else {
+      await createNotification(
+        booking.items?.owner_id,
+        "return",
+        `Арендатор отправил акт возврата: ${booking.items?.name || "вещь"}. Проверьте состояние и примите возврат.`,
+        "/profile"
+      );
+    }
   }
 
   async function confirmRentalReport(booking: any, report: any) {
@@ -518,6 +544,22 @@ export default function ProfilePage() {
     await supabase.from("bookings").update({ status: nextStatus }).eq("id", booking.id);
     upsertLocalReport(data);
     patchBookingState(booking.id, { status: nextStatus });
+
+    if (report.type === "handover") {
+      await createNotification(
+        booking.items?.owner_id,
+        "handover",
+        `Арендатор подтвердил получение: ${booking.items?.name || "вещь"}. Аренда началась.`,
+        "/profile"
+      );
+    } else {
+      await createNotification(
+        booking.renter_id,
+        "return",
+        `Возврат принят: ${booking.items?.name || "вещь"}. Сделка завершена.`,
+        "/profile"
+      );
+    }
   }
 
   async function openRentalDispute(booking: any, report: any, files: File[], reason: string) {
@@ -546,6 +588,26 @@ export default function ProfilePage() {
     }
 
     patchBookingState(booking.id, { status: "dispute" });
+
+    const otherUserId = user?.id === booking.renter_id ? booking.items?.owner_id : booking.renter_id;
+    await createNotification(
+      otherUserId,
+      "dispute",
+      `Открыт спор по аренде: ${booking.items?.name || "вещь"}.`,
+      "/profile"
+    );
+
+    const { data: admins } = await supabase.from("profiles").select("id").eq("is_admin", true);
+    await Promise.all(
+      (admins || []).map((admin) =>
+        createNotification(
+          admin.id,
+          "dispute",
+          `Новый спор по аренде: ${booking.items?.name || "вещь"}.`,
+          "/admin"
+        )
+      )
+    );
   }
 
   function addLocalReview(review: any) {
@@ -585,6 +647,15 @@ export default function ProfilePage() {
     }
 
     addLocalReview(data);
+
+    await createNotification(
+      targetUserId,
+      "review",
+      reviewType === "item"
+        ? `Оставлен отзыв о вещи: ${booking.items?.name || "объявление"}.`
+        : "Владелец оценил вас как арендатора.",
+      reviewType === "item" ? `/item/${booking.item_id}` : "/profile"
+    );
   }
 
   async function resendConfirmation() {

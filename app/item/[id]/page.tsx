@@ -200,7 +200,7 @@ async function loadRelatedItems() {
       {
         user_id: item.owner_id,
         type: "booking",
-        text: `Новая бронь: ${item.name}`,
+        text: `Новая заявка на аренду: ${item.name}. Проверьте даты и подтвердите бронь в личном кабинете.`,
         link: "/profile",
       },
     ]);
