@@ -339,6 +339,7 @@ export default function UserPage() {
                           key={review.id}
                           review={review}
                           authorName={authorName}
+                          label="Отзыв о вещи"
                         />
                       );
                     })}
@@ -363,6 +364,7 @@ export default function UserPage() {
                           key={review.id}
                           review={review}
                           authorName={authorName}
+                          label="Оценка арендатора"
                         />
                       );
                     })}
@@ -457,11 +459,23 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
-function ReviewArticle({ review, authorName }: { review: any; authorName: string }) {
+function ReviewArticle({
+  review,
+  authorName,
+  label,
+}: {
+  review: any;
+  authorName: string;
+  label: string;
+}) {
   return (
     <article className="rounded-[22px] border border-black/5 bg-[#F7F7F5] p-5">
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-sm font-extrabold text-white">
+      <div className="flex items-start gap-3">
+        <a
+          href={`/user/${review.author_id}`}
+          className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-sm font-extrabold text-white"
+          aria-label={`Профиль: ${authorName}`}
+        >
           {review.profiles?.avatar ? (
             <img
               src={review.profiles.avatar}
@@ -471,19 +485,38 @@ function ReviewArticle({ review, authorName }: { review: any; authorName: string
           ) : (
             authorName[0]?.toUpperCase()
           )}
-        </div>
-        <div>
-          <div className="font-extrabold">{authorName}</div>
-          <div className="text-xs text-[#8D8D8D]">
-            {new Date(review.created_at).toLocaleDateString("ru-RU")}
+        </a>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={`/user/${review.author_id}`}
+              className="max-w-full break-words font-extrabold hover:text-[#3F9E47]"
+            >
+              {authorName}
+            </a>
+            <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-[#6B6B6B]">
+              {label}
+            </span>
+          </div>
+
+          <div className="mt-1 text-xs text-[#8D8D8D]">
+            {new Date(review.created_at).toLocaleDateString("ru-RU", {
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })}
           </div>
         </div>
       </div>
 
       <div className="mt-4 text-sm font-bold text-[#FFB800]">
         {"★".repeat(review.rating)}
+        <span className="text-[#D7D7D7]">
+          {"★".repeat(Math.max(0, 5 - Number(review.rating || 0)))}
+        </span>
       </div>
-      <p className="mt-3 leading-relaxed text-[#555555]">
+      <p className="mt-3 break-words leading-relaxed text-[#555555]">
         {review.text || "Без текста"}
       </p>
     </article>
