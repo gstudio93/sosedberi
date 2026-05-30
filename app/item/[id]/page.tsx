@@ -98,8 +98,18 @@ async function loadRelatedItems() {
   async function loadReviews() {
     const { data } = await supabase
       .from("reviews")
-      .select("*")
+      .select(
+        `
+        *,
+        profiles:author_id (
+          username,
+          full_name,
+          avatar
+        )
+      `
+      )
       .eq("item_id", id)
+      .eq("review_type", "item")
       .order("created_at", { ascending: false });
 
     setReviews(data || []);
@@ -428,22 +438,67 @@ const mapSrc = hasCoordinates
               {reviews.length === 0 ? (
                 <div className="text-[#6B6B6B]">Пока нет отзывов</div>
               ) : (
-                reviews.map((review) => (
-                  <div
-                    key={review.id}
-                    className="rounded-2xl bg-[#F7F7F5] p-5"
-                  >
-                    <div className="text-xl text-[#7BC47F]">
-                      {"★".repeat(review.rating)}
-                    </div>
+                reviews.map((review) => {
+                  const authorName =
+                    review.profiles?.full_name ||
+                    review.profiles?.username ||
+                    "Пользователь";
 
-                    <p className="mt-3 text-[#555555]">{review.text}</p>
+                  return (
+                    <div
+                      key={review.id}
+                      className="rounded-2xl bg-[#F7F7F5] p-5"
+                    >
+                      <div className="flex items-start gap-3">
+                        <a
+                          href={`/user/${review.author_id}`}
+                          className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-base font-black text-white"
+                          aria-label={`Профиль: ${authorName}`}
+                        >
+                          {review.profiles?.avatar ? (
+                            <img
+                              src={review.profiles.avatar}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            authorName[0]?.toUpperCase()
+                          )}
+                        </a>
 
-                    <div className="mt-4 text-sm text-[#8D8D8D]">
-                      {new Date(review.created_at).toLocaleDateString()}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <a
+                              href={`/user/${review.author_id}`}
+                              className="max-w-full break-words text-base font-black text-[#111111] hover:text-[#3F9E47]"
+                            >
+                              {authorName}
+                            </a>
+
+                            <span className="text-sm text-[#8D8D8D]">
+                              {new Date(review.created_at).toLocaleDateString("ru-RU", {
+                                day: "2-digit",
+                                month: "long",
+                                year: "numeric",
+                              })}
+                            </span>
+                          </div>
+
+                          <div className="mt-1 text-lg text-[#7BC47F]">
+                            {"★".repeat(review.rating)}
+                            <span className="text-[#D7D7D7]">
+                              {"★".repeat(Math.max(0, 5 - Number(review.rating || 0)))}
+                            </span>
+                          </div>
+
+                          <p className="mt-3 break-words leading-7 text-[#555555]">
+                            {review.text || "Без текста"}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
