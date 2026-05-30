@@ -1214,6 +1214,15 @@ function IncomingBookingRow({
   const renterName = renterProfile?.full_name || renterProfile?.username || "Арендатор";
   const renterInitial = renterName[0]?.toUpperCase() || "А";
   const statusText = getBookingStatusText(booking.status, booking.payment_status);
+  const actionHint = getBookingActionHint(
+    booking.status,
+    booking.payment_status,
+    "owner",
+    !!handoverReport,
+    !!returnReport,
+    !!renterReview
+  );
+  const statusClass = getBookingStatusClass(booking.status, booking.payment_status);
 
   return (
     <div className="grid gap-4 rounded-[20px] border border-[#7BC47F]/25 bg-[#F8FFF8] p-3 md:grid-cols-[110px_minmax(0,1fr)_160px] md:items-center">
@@ -1251,9 +1260,14 @@ function IncomingBookingRow({
             {getBookingTotal(booking)} ₽
           </span>
         </div>
-        <span className="mt-3 inline-flex rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-700">
+        <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusClass}`}>
           {statusText}
         </span>
+        {actionHint && (
+          <div className="mt-2 text-xs leading-relaxed text-[#6B6B6B]">
+            {actionHint}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">
@@ -1353,6 +1367,15 @@ function MyBookingRow({
 }) {
   const ownerName = ownerProfile?.full_name || ownerProfile?.username || "Владелец";
   const statusText = getBookingStatusText(booking.status, booking.payment_status);
+  const actionHint = getBookingActionHint(
+    booking.status,
+    booking.payment_status,
+    "renter",
+    !!handoverReport,
+    !!returnReport,
+    !!itemReview
+  );
+  const statusClass = getBookingStatusClass(booking.status, booking.payment_status);
 
   return (
     <div className="grid gap-4 rounded-[20px] border border-black/5 bg-white p-3 md:grid-cols-[92px_minmax(0,1fr)_140px] md:items-center">
@@ -1382,9 +1405,14 @@ function MyBookingRow({
       </div>
 
       <div className="flex flex-col gap-2">
-      <span className="rounded-full bg-yellow-100 px-3 py-1 text-center text-xs font-bold text-yellow-700">
+      <span className={`rounded-full px-3 py-1 text-center text-xs font-bold ${statusClass}`}>
         {statusText}
       </span>
+      {actionHint && (
+        <div className="rounded-2xl bg-[#F7F7F5] px-3 py-2 text-xs leading-relaxed text-[#6B6B6B]">
+          {actionHint}
+        </div>
+      )}
       {booking.status === "approved" && booking.payment_status !== "paid" && (
         <button
           onClick={() => handlePayment(booking.id)}
@@ -1443,17 +1471,88 @@ function MyBookingRow({
 }
 
 function getBookingStatusText(status: string, paymentStatus?: string) {
-  if (status === "pending") return "Ожидает подтверждения";
-  if (status === "approved" && paymentStatus !== "paid") return "Подтверждена, ожидает оплату";
-  if (status === "approved" && paymentStatus === "paid") return "Оплачена, ждет передачу";
-  if (status === "handover_pending") return "Ожидает подтверждение передачи";
-  if (status === "active") return "Аренда активна";
-  if (status === "return_pending") return "Ожидает подтверждение возврата";
+  if (status === "pending") return "Заявка отправлена";
+  if (status === "approved" && paymentStatus !== "paid") return "Подтверждена, нужна оплата";
+  if (status === "approved" && paymentStatus === "paid") return "Оплачена";
+  if (status === "handover_pending") return "Передача вещи";
+  if (status === "active") return "В аренде";
+  if (status === "return_pending") return "Возврат вещи";
   if (status === "completed") return "Завершена";
   if (status === "dispute") return "Открыт спор";
   if (status === "rejected") return "Отклонена";
   if (status === "cancelled") return "Отменена";
   return status;
+}
+
+function getBookingStatusClass(status: string, paymentStatus?: string) {
+  if (status === "completed") return "bg-[#E8F7EA] text-[#2F9A44]";
+  if (status === "active") return "bg-[#E8F7EA] text-[#2F9A44]";
+  if (status === "approved" && paymentStatus === "paid") return "bg-[#E8F7EA] text-[#2F9A44]";
+  if (status === "dispute") return "bg-red-100 text-red-700";
+  if (status === "rejected" || status === "cancelled") return "bg-[#F1F1EE] text-[#6B6B6B]";
+  return "bg-yellow-100 text-yellow-700";
+}
+
+function getBookingActionHint(
+  status: string,
+  paymentStatus: string | undefined,
+  role: "owner" | "renter",
+  hasHandoverReport: boolean,
+  hasReturnReport: boolean,
+  hasReview: boolean
+) {
+  if (status === "pending") {
+    return role === "owner"
+      ? "Проверьте даты и подтвердите или отклоните заявку."
+      : "Владелец получил заявку. После подтверждения появится оплата.";
+  }
+
+  if (status === "approved" && paymentStatus !== "paid") {
+    return role === "owner"
+      ? "Ждем, пока арендатор отметит оплату."
+      : "Оплатите аренду, чтобы перейти к передаче вещи.";
+  }
+
+  if (status === "handover_pending") {
+    if (role === "owner") {
+      return hasHandoverReport
+        ? "Акт передачи отправлен. Ждем подтверждение арендатора."
+        : "После оплаты оформите акт передачи с фото состояния вещи.";
+    }
+
+    return hasHandoverReport
+      ? "Проверьте фото и подтвердите получение вещи."
+      : "Владелец готовит акт передачи вещи.";
+  }
+
+  if (status === "active") {
+    return role === "renter"
+      ? "Когда вернете вещь, оформите акт возврата с фото."
+      : "Вещь у арендатора. Ждем возврат.";
+  }
+
+  if (status === "return_pending") {
+    if (role === "owner") {
+      return hasReturnReport
+        ? "Проверьте акт возврата и примите вещь или откройте спор."
+        : "Арендатор готовит акт возврата.";
+    }
+
+    return "Акт возврата отправлен. Ждем подтверждение владельца.";
+  }
+
+  if (status === "completed") {
+    return hasReview
+      ? "Сделка завершена, отзыв оставлен."
+      : role === "owner"
+        ? "Оцените арендатора после завершения сделки."
+        : "Оставьте отзыв о вещи.";
+  }
+
+  if (status === "dispute") return "Спор передан администратору.";
+  if (status === "rejected") return "Заявка отклонена владельцем.";
+  if (status === "cancelled") return "Заявка отменена.";
+  return "";
 }
 
 function getRentalReport(reports: any[], bookingId: string, type: "handover" | "return") {
