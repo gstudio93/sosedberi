@@ -116,7 +116,7 @@ export default function FavoritesPage() {
           <EmptyState
             title="Пока ничего не сохранено"
             text="Добавляйте объявления в избранное, чтобы сравнить цены, районы и условия аренды."
-            actionHref="/"
+            actionHref="/catalog"
             actionLabel="Смотреть каталог"
           />
         ) : (
@@ -130,7 +130,7 @@ export default function FavoritesPage() {
               </div>
 
               <Link
-                href="/"
+                href="/catalog"
                 className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-bold transition hover:bg-[#F7F7F5]"
               >
                 Добавить еще

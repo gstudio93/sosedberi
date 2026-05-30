@@ -7,7 +7,7 @@ const footerGroups = [
   {
     title: "Пользователям",
     links: [
-      { href: "/", label: "Каталог" },
+      { href: "/catalog", label: "Каталог" },
       { href: "/favorites", label: "Избранное" },
       { href: "/profile", label: "Личный кабинет" },
       { href: "/notifications", label: "Уведомления" },

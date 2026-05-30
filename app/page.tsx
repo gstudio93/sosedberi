@@ -593,7 +593,7 @@ export default function HomePage() {
             </h2>
           </div>
           <a
-            href="#recent-items"
+            href="/catalog"
             className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-black transition hover:border-[#7BC47F]"
           >
             Смотреть каталог

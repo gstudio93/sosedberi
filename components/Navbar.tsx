@@ -20,7 +20,7 @@ type Profile = {
 };
 
 const navLinks = [
-  { href: "/", label: "Каталог" },
+  { href: "/catalog", label: "Каталог" },
   { href: "/favorites", label: "Избранное" },
 ] as const;
 
@@ -166,7 +166,8 @@ export default function Navbar() {
     }
   }
 
-  const isCatalogActive = pathname === "/" || pathname.startsWith("/item");
+  const isCatalogActive =
+    pathname === "/" || pathname.startsWith("/catalog") || pathname.startsWith("/item");
 
   return (
     <header className="fixed left-0 right-0 top-0 z-50 px-3 py-2 lg:px-6 lg:py-3">
@@ -182,7 +183,7 @@ export default function Navbar() {
         <nav className="hidden items-center gap-1 rounded-full bg-[#F7F7F5] p-1 lg:flex">
           {navLinks.map((link) => {
             const active =
-              link.href === "/" ? isCatalogActive : pathname.startsWith(link.href);
+              link.href === "/catalog" ? isCatalogActive : pathname.startsWith(link.href);
 
             return (
               <Link

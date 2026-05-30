@@ -14,7 +14,7 @@ const links: {
   icon: NavIcon;
 }[] = [
   {
-    href: "/",
+    href: "/catalog",
     label: "Каталог",
     icon: "catalog",
   },
@@ -103,8 +103,8 @@ export default function MobileBottomNav() {
       <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
         {links.map((link) => {
           const active =
-            link.href === "/"
-              ? pathname === "/" || pathname.startsWith("/item")
+            link.href === "/catalog"
+              ? pathname === "/" || pathname.startsWith("/catalog") || pathname.startsWith("/item")
               : pathname === link.href || pathname.startsWith(`${link.href}/`);
 
           return (

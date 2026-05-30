@@ -1,0 +1,787 @@
+"use client";
+
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabase";
+
+type Item = {
+  id: string;
+  owner_id?: string | null;
+  name: string;
+  description?: string | null;
+  price?: number | string | null;
+  deposit?: number | string | null;
+  location?: string | null;
+  city?: string | null;
+  category?: string | null;
+  image?: string | null;
+  owner_profile?: Profile | null;
+  rating?: ItemRating;
+};
+
+type Profile = {
+  id: string;
+  full_name?: string | null;
+  username?: string | null;
+  avatar?: string | null;
+};
+
+type ItemReview = {
+  item_id: string;
+  rating: number;
+};
+
+type ItemRating = {
+  average: number;
+  count: number;
+};
+
+type SortMode = "new" | "price_asc" | "price_desc";
+
+const CATALOG_CATEGORIES = [
+  "Инструменты",
+  "Техника",
+  "Для дома",
+  "Для отдыха",
+  "Спорт",
+  "Транспорт",
+  "Детские товары",
+  "Фото и видео",
+  "Сад и дача",
+  "Другое",
+];
+
+const CATALOG_CITIES = [
+  "Краснодар",
+  "Сочи",
+  "Новороссийск",
+  "Армавир",
+  "Анапа",
+  "Ейск",
+  "Геленджик",
+  "Кропоткин",
+  "Славянск-на-Кубани",
+  "Туапсе",
+  "Темрюк",
+  "Крымск",
+  "Белореченск",
+  "Горячий Ключ",
+  "Тихорецк",
+];
+
+export default function CatalogPage() {
+  const [items, setItems] = useState<Item[]>([]);
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
+  const [city, setCity] = useState("");
+  const [priceMin, setPriceMin] = useState("");
+  const [priceMax, setPriceMax] = useState("");
+  const [depositMax, setDepositMax] = useState("");
+  const [onlyWithPhoto, setOnlyWithPhoto] = useState(false);
+  const [sortMode, setSortMode] = useState<SortMode>("new");
+
+  useEffect(() => {
+    loadItems();
+    loadFavorites();
+  }, []);
+
+  async function loadItems() {
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from("items")
+      .select("*")
+      .eq("status", "active")
+      .neq("moderation_status", "rejected")
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    if (error) {
+      console.log(error);
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+
+    const rows = ((data || []) as Item[]).filter((item) => item.name);
+    const ownerIds = Array.from(
+      new Set(rows.map((item) => item.owner_id).filter(Boolean))
+    ) as string[];
+    const itemIds = rows.map((item) => item.id);
+
+    const [profilesResult, reviewsResult] = await Promise.all([
+      ownerIds.length
+        ? supabase
+            .from("profiles")
+            .select("id, full_name, username, avatar")
+            .in("id", ownerIds)
+        : Promise.resolve({ data: [] }),
+      itemIds.length
+        ? supabase.from("reviews").select("item_id, rating").in("item_id", itemIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const profilesById = new Map(
+      ((profilesResult.data || []) as Profile[]).map((profile) => [
+        profile.id,
+        profile,
+      ])
+    );
+    const ratingBuckets = new Map<string, number[]>();
+
+    ((reviewsResult.data || []) as ItemReview[]).forEach((review) => {
+      const bucket = ratingBuckets.get(review.item_id) || [];
+      bucket.push(Number(review.rating) || 0);
+      ratingBuckets.set(review.item_id, bucket);
+    });
+
+    setItems(
+      rows.map((item) => ({
+        ...item,
+        owner_profile: item.owner_id
+          ? profilesById.get(item.owner_id) || null
+          : null,
+        rating: getRating(ratingBuckets.get(item.id) || []),
+      }))
+    );
+    setLoading(false);
+  }
+
+  async function loadFavorites() {
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth.user;
+
+    if (!user) {
+      setFavoriteIds([]);
+      return;
+    }
+
+    const { data } = await supabase
+      .from("favorites")
+      .select("item_id")
+      .eq("user_id", user.id);
+
+    setFavoriteIds((data || []).map((favorite) => favorite.item_id));
+  }
+
+  async function toggleFavorite(itemId: string) {
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth.user;
+
+    if (!user) {
+      alert("Войдите или зарегистрируйтесь, чтобы добавлять вещи в избранное.");
+      return;
+    }
+
+    const isFavorite = favoriteIds.includes(itemId);
+
+    if (isFavorite) {
+      await supabase
+        .from("favorites")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("item_id", itemId);
+
+      setFavoriteIds((current) => current.filter((id) => id !== itemId));
+      return;
+    }
+
+    await supabase
+      .from("favorites")
+      .upsert({ user_id: user.id, item_id: itemId }, { onConflict: "user_id,item_id" });
+
+    setFavoriteIds((current) => [...current, itemId]);
+  }
+
+  function resetFilters() {
+    setSearch("");
+    setCategory("");
+    setCity("");
+    setPriceMin("");
+    setPriceMax("");
+    setDepositMax("");
+    setOnlyWithPhoto(false);
+    setSortMode("new");
+  }
+
+  const filteredItems = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+    const min = Number(priceMin) || 0;
+    const max = Number(priceMax) || 0;
+    const maxDeposit = Number(depositMax) || 0;
+
+    const filtered = items.filter((item) => {
+      const itemName = item.name.toLowerCase();
+      const itemDescription = (item.description || "").toLowerCase();
+      const itemLocation = (item.location || item.city || "").toLowerCase();
+      const itemPrice = Number(item.price) || 0;
+      const itemDeposit = Number(item.deposit) || 0;
+
+      if (
+        normalizedSearch &&
+        !itemName.includes(normalizedSearch) &&
+        !itemDescription.includes(normalizedSearch) &&
+        !itemLocation.includes(normalizedSearch)
+      ) {
+        return false;
+      }
+
+      if (category && item.category !== category) return false;
+      if (city && !itemLocation.includes(city.toLowerCase())) return false;
+      if (min && itemPrice < min) return false;
+      if (max && itemPrice > max) return false;
+      if (maxDeposit && itemDeposit > maxDeposit) return false;
+      if (onlyWithPhoto && !item.image) return false;
+
+      return true;
+    });
+
+    return filtered.sort((first, second) => {
+      const firstPrice = Number(first.price) || 0;
+      const secondPrice = Number(second.price) || 0;
+
+      if (sortMode === "price_asc") return firstPrice - secondPrice;
+      if (sortMode === "price_desc") return secondPrice - firstPrice;
+      return 0;
+    });
+  }, [
+    category,
+    city,
+    depositMax,
+    items,
+    onlyWithPhoto,
+    priceMax,
+    priceMin,
+    search,
+    sortMode,
+  ]);
+
+  const activeFiltersCount = [
+    search,
+    category,
+    city,
+    priceMin,
+    priceMax,
+    depositMax,
+    onlyWithPhoto ? "photo" : "",
+    sortMode !== "new" ? sortMode : "",
+  ].filter(Boolean).length;
+
+  return (
+    <main className="min-h-screen bg-[#F7F7F5] px-4 pb-24 pt-28 text-[#111111] sm:px-6 lg:pt-32">
+      <div className="mx-auto max-w-7xl">
+        <section className="mb-5 rounded-[28px] border border-black/5 bg-white p-5 shadow-sm sm:p-7 lg:p-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="mb-3 inline-flex rounded-full bg-[#E8F7EA] px-3 py-1 text-xs font-extrabold text-[#3F9E47]">
+                Каталог вещей
+              </div>
+              <h1 className="text-[36px] font-black leading-none sm:text-5xl">
+                Найдите вещь рядом
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#6B6B6B] sm:text-base">
+                Фильтруйте объявления по категории, городу, цене и залогу. На
+                телефоне карточки собраны компактно, чтобы быстрее сравнивать.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 rounded-[22px] bg-[#F7F7F5] p-2 text-center">
+              <Metric label="Всего" value={items.length} />
+              <Metric label="Найдено" value={filteredItems.length} />
+              <Metric label="С фото" value={items.filter((item) => item.image).length} />
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3 lg:flex-row">
+            <div className="relative flex-1">
+              <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-lg">
+                ⌕
+              </span>
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Что ищем? Например: палатка, перфоратор, кресло"
+                className="h-14 w-full rounded-full border border-black/10 bg-[#F7F7F5] pl-12 pr-5 text-sm font-semibold outline-none transition focus:border-[#7BC47F] focus:bg-white"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(true)}
+              className="flex h-14 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-5 text-sm font-black shadow-sm lg:hidden"
+            >
+              Фильтры
+              {activeFiltersCount > 0 && (
+                <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-[#7BC47F] px-2 text-xs text-white">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+
+            <select
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value as SortMode)}
+              className="hidden h-14 rounded-full border border-black/10 bg-white px-5 text-sm font-black outline-none lg:block"
+            >
+              <option value="new">Сначала новые</option>
+              <option value="price_asc">Сначала дешевле</option>
+              <option value="price_desc">Сначала дороже</option>
+            </select>
+          </div>
+        </section>
+
+        <div className="grid gap-6 lg:grid-cols-[310px_minmax(0,1fr)]">
+          <aside className="hidden lg:block">
+            <FiltersPanel
+              category={category}
+              city={city}
+              depositMax={depositMax}
+              onlyWithPhoto={onlyWithPhoto}
+              priceMax={priceMax}
+              priceMin={priceMin}
+              sortMode={sortMode}
+              onCategoryChange={setCategory}
+              onCityChange={setCity}
+              onDepositMaxChange={setDepositMax}
+              onOnlyWithPhotoChange={setOnlyWithPhoto}
+              onPriceMaxChange={setPriceMax}
+              onPriceMinChange={setPriceMin}
+              onReset={resetFilters}
+              onSortModeChange={setSortMode}
+            />
+          </aside>
+
+          <section>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm font-bold text-[#6B6B6B]">
+                {loading
+                  ? "Загружаем объявления..."
+                  : `${filteredItems.length} ${pluralize(filteredItems.length, "объявление", "объявления", "объявлений")}`}
+              </div>
+
+              {activeFiltersCount > 0 && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="rounded-full bg-white px-4 py-2 text-xs font-black text-[#6B6B6B] shadow-sm transition hover:text-[#111111]"
+                >
+                  Сбросить фильтры
+                </button>
+              )}
+            </div>
+
+            {loading ? (
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="h-64 animate-pulse rounded-[24px] bg-white shadow-sm"
+                  />
+                ))}
+              </div>
+            ) : filteredItems.length === 0 ? (
+              <div className="rounded-[28px] bg-white p-8 text-center shadow-sm">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F7F7F5] text-2xl">
+                  ⌕
+                </div>
+                <h2 className="mt-4 text-2xl font-black">Ничего не найдено</h2>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[#6B6B6B]">
+                  Попробуйте убрать часть фильтров или поискать похожее название.
+                </p>
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="mt-6 rounded-full bg-[#7BC47F] px-6 py-3 text-sm font-black text-white"
+                >
+                  Показать все
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {filteredItems.map((item) => (
+                  <CatalogCard
+                    key={item.id}
+                    favorite={favoriteIds.includes(item.id)}
+                    item={item}
+                    onFavorite={() => toggleFavorite(item.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+
+      {filtersOpen && (
+        <div className="fixed inset-0 z-[150] bg-black/35 lg:hidden">
+          <div className="absolute bottom-0 left-0 right-0 max-h-[88dvh] overflow-y-auto rounded-t-[30px] bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-black">Фильтры</h2>
+                <p className="text-sm text-[#6B6B6B]">Уточните поиск</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F7F7F5] text-xl font-black"
+                aria-label="Закрыть"
+              >
+                ×
+              </button>
+            </div>
+
+            <FiltersPanel
+              category={category}
+              city={city}
+              depositMax={depositMax}
+              onlyWithPhoto={onlyWithPhoto}
+              priceMax={priceMax}
+              priceMin={priceMin}
+              sortMode={sortMode}
+              onCategoryChange={setCategory}
+              onCityChange={setCity}
+              onDepositMaxChange={setDepositMax}
+              onOnlyWithPhotoChange={setOnlyWithPhoto}
+              onPriceMaxChange={setPriceMax}
+              onPriceMinChange={setPriceMin}
+              onReset={resetFilters}
+              onSortModeChange={setSortMode}
+            />
+
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(false)}
+              className="mt-4 w-full rounded-full bg-[#7BC47F] px-5 py-4 text-sm font-black text-white"
+            >
+              Показать {filteredItems.length}
+            </button>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
+
+function FiltersPanel({
+  category,
+  city,
+  depositMax,
+  onlyWithPhoto,
+  priceMax,
+  priceMin,
+  sortMode,
+  onCategoryChange,
+  onCityChange,
+  onDepositMaxChange,
+  onOnlyWithPhotoChange,
+  onPriceMaxChange,
+  onPriceMinChange,
+  onReset,
+  onSortModeChange,
+}: {
+  category: string;
+  city: string;
+  depositMax: string;
+  onlyWithPhoto: boolean;
+  priceMax: string;
+  priceMin: string;
+  sortMode: SortMode;
+  onCategoryChange: (value: string) => void;
+  onCityChange: (value: string) => void;
+  onDepositMaxChange: (value: string) => void;
+  onOnlyWithPhotoChange: (value: boolean) => void;
+  onPriceMaxChange: (value: string) => void;
+  onPriceMinChange: (value: string) => void;
+  onReset: () => void;
+  onSortModeChange: (value: SortMode) => void;
+}) {
+  return (
+    <div className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm lg:sticky lg:top-28">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <h2 className="text-xl font-black">Фильтры</h2>
+        <button
+          type="button"
+          onClick={onReset}
+          className="text-sm font-black text-[#3F9E47]"
+        >
+          Сбросить
+        </button>
+      </div>
+
+      <FilterBlock title="Категория">
+        <div className="flex flex-wrap gap-2">
+          <Chip active={!category} onClick={() => onCategoryChange("")}>
+            Все
+          </Chip>
+          {CATALOG_CATEGORIES.map((item) => (
+            <Chip
+              key={item}
+              active={category === item}
+              onClick={() => onCategoryChange(item)}
+            >
+              {item}
+            </Chip>
+          ))}
+        </div>
+      </FilterBlock>
+
+      <FilterBlock title="Город">
+        <select
+          value={city}
+          onChange={(event) => onCityChange(event.target.value)}
+          className="h-12 w-full rounded-2xl border border-black/10 bg-[#F7F7F5] px-4 text-sm font-bold outline-none focus:border-[#7BC47F]"
+        >
+          <option value="">Все города</option>
+          {CATALOG_CITIES.map((item) => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+      </FilterBlock>
+
+      <FilterBlock title="Цена за сутки">
+        <div className="grid grid-cols-2 gap-2">
+          <NumberInput value={priceMin} onChange={onPriceMinChange} placeholder="от" />
+          <NumberInput value={priceMax} onChange={onPriceMaxChange} placeholder="до" />
+        </div>
+      </FilterBlock>
+
+      <FilterBlock title="Залог">
+        <NumberInput
+          value={depositMax}
+          onChange={onDepositMaxChange}
+          placeholder="до, ₽"
+        />
+      </FilterBlock>
+
+      <FilterBlock title="Сортировка">
+        <select
+          value={sortMode}
+          onChange={(event) => onSortModeChange(event.target.value as SortMode)}
+          className="h-12 w-full rounded-2xl border border-black/10 bg-[#F7F7F5] px-4 text-sm font-bold outline-none focus:border-[#7BC47F]"
+        >
+          <option value="new">Сначала новые</option>
+          <option value="price_asc">Сначала дешевле</option>
+          <option value="price_desc">Сначала дороже</option>
+        </select>
+      </FilterBlock>
+
+      <label className="mt-5 flex cursor-pointer items-center justify-between rounded-2xl bg-[#F7F7F5] px-4 py-3 text-sm font-black">
+        Только с фото
+        <input
+          checked={onlyWithPhoto}
+          onChange={(event) => onOnlyWithPhotoChange(event.target.checked)}
+          type="checkbox"
+          className="h-5 w-5 accent-[#7BC47F]"
+        />
+      </label>
+    </div>
+  );
+}
+
+function CatalogCard({
+  favorite,
+  item,
+  onFavorite,
+}: {
+  favorite: boolean;
+  item: Item;
+  onFavorite: () => void;
+}) {
+  const location = item.location || item.city || "Город не указан";
+  const price = Number(item.price) || 0;
+  const deposit = Number(item.deposit) || 0;
+  const ownerName =
+    item.owner_profile?.full_name || item.owner_profile?.username || "Владелец";
+  const initial = ownerName.slice(0, 1).toUpperCase();
+
+  return (
+    <article className="group overflow-hidden rounded-[20px] border border-black/5 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg sm:rounded-[24px]">
+      <Link href={`/item/${item.id}`} className="block">
+        <div className="relative aspect-[1.16/1] overflow-hidden bg-[#EFEFEB] sm:aspect-[4/3]">
+          <img
+            src={item.image || "/hero.jpg"}
+            alt={item.name}
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+          />
+          <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/55 to-transparent" />
+
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onFavorite();
+            }}
+            className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full text-base shadow-sm transition hover:scale-105 sm:right-3 sm:top-3 sm:h-10 sm:w-10 sm:text-lg ${
+              favorite ? "bg-[#111111] text-white" : "bg-white text-[#111111]"
+            }`}
+            aria-label={favorite ? "Убрать из избранного" : "Добавить в избранное"}
+          >
+            {favorite ? "♥" : "♡"}
+          </button>
+
+          <div className="absolute bottom-2 left-2 rounded-full bg-white/92 px-2.5 py-1 text-[10px] font-black text-[#111111] shadow-sm sm:bottom-3 sm:left-3 sm:text-xs">
+            {item.rating?.count ? (
+              <span>
+                ★ {item.rating.average.toFixed(1)} · {item.rating.count}
+              </span>
+            ) : (
+              <span>Нет отзывов</span>
+            )}
+          </div>
+
+          <div className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-[#7BC47F] text-xs font-black text-white sm:bottom-3 sm:right-3 sm:h-11 sm:w-11 sm:text-base">
+            {item.owner_profile?.avatar ? (
+              <img
+                src={item.owner_profile.avatar}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              initial
+            )}
+          </div>
+        </div>
+
+        <div className="p-3 sm:p-4">
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {item.category && (
+              <span className="rounded-full bg-[#F1FAF2] px-2.5 py-1 text-[10px] font-black text-[#3F9E47] sm:text-xs">
+                {item.category}
+              </span>
+            )}
+            {deposit > 0 && (
+              <span className="rounded-full bg-[#F7F7F5] px-2.5 py-1 text-[10px] font-black text-[#6B6B6B] sm:text-xs">
+                Залог {deposit.toLocaleString("ru-RU")} ₽
+              </span>
+            )}
+          </div>
+
+          <h3 className="line-clamp-2 min-h-[36px] text-sm font-black leading-tight sm:min-h-0 sm:text-lg">
+            {item.name}
+          </h3>
+          <p className="mt-1 line-clamp-2 min-h-[32px] text-xs leading-snug text-[#6B6B6B] sm:text-sm">
+            {location}
+          </p>
+
+          <div className="mt-3 flex items-end justify-between gap-2">
+            <div>
+              <div className="text-lg font-black sm:text-2xl">
+                {price.toLocaleString("ru-RU")} ₽
+              </div>
+              <div className="text-[10px] font-bold uppercase text-[#8D8D8D]">
+                в день
+              </div>
+            </div>
+
+            <span className="hidden rounded-full bg-[#111111] px-4 py-2 text-xs font-black text-white sm:inline-flex">
+              Открыть
+            </span>
+          </div>
+        </div>
+      </Link>
+    </article>
+  );
+}
+
+function Chip({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-3.5 py-2 text-xs font-black transition ${
+        active
+          ? "border-[#7BC47F] bg-[#7BC47F] text-white"
+          : "border-black/10 bg-white text-[#5F5F5F] hover:border-[#7BC47F] hover:text-[#111111]"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function FilterBlock({
+  children,
+  title,
+}: {
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <div className="border-t border-black/5 py-5 first:border-t-0 first:pt-0">
+      <h3 className="mb-3 text-sm font-black text-[#111111]">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="min-w-[82px] rounded-[18px] bg-white px-3 py-3 shadow-sm">
+      <div className="text-xl font-black">{value}</div>
+      <div className="text-[10px] font-bold uppercase text-[#8D8D8D]">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function NumberInput({
+  onChange,
+  placeholder,
+  value,
+}: {
+  onChange: (value: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <input
+      inputMode="numeric"
+      min="0"
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      type="number"
+      value={value}
+      className="h-12 w-full rounded-2xl border border-black/10 bg-[#F7F7F5] px-4 text-sm font-bold outline-none focus:border-[#7BC47F]"
+    />
+  );
+}
+
+function getRating(ratings: number[]): ItemRating {
+  const cleanRatings = ratings.filter((rating) => rating > 0);
+
+  if (!cleanRatings.length) {
+    return { average: 0, count: 0 };
+  }
+
+  const total = cleanRatings.reduce((sum, rating) => sum + rating, 0);
+
+  return {
+    average: Math.round((total / cleanRatings.length) * 10) / 10,
+    count: cleanRatings.length,
+  };
+}
+
+function pluralize(count: number, one: string, few: string, many: string) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
