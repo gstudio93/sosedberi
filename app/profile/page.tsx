@@ -1058,9 +1058,45 @@ export default function ProfilePage() {
             </DashboardSection>
           )}
 
-          {["messages", "favorites", "wallet", "reviews"].includes(activeTab) && (
-            <DashboardSection title={getTabTitle(activeTab)}>
-              <EmptyState text="Раздел скоро будет доступен в личном кабинете" />
+          {activeTab === "messages" && (
+            <DashboardSection title="Сообщения">
+              <ProfileShortcut
+                title="Откройте все диалоги"
+                text="Здесь собраны переписки по объявлениям и бронированиям."
+                href="/messages"
+                action="Перейти в чаты"
+              />
+            </DashboardSection>
+          )}
+
+          {activeTab === "favorites" && (
+            <DashboardSection title="Избранное">
+              <ProfileShortcut
+                title="Сохраненные вещи"
+                text="Возвращайтесь к вещам, которые понравились, и быстро оформляйте аренду."
+                href="/favorites"
+                action="Открыть избранное"
+              />
+            </DashboardSection>
+          )}
+
+          {activeTab === "reviews" && (
+            <DashboardSection title="Отзывы">
+              <ProfileShortcut
+                title="Ваш публичный рейтинг"
+                text="Отзывы о ваших вещах и оценки от арендодателей отображаются в публичном профиле."
+                href={`/user/${user.id}`}
+                action="Посмотреть отзывы"
+              />
+            </DashboardSection>
+          )}
+
+          {activeTab === "wallet" && (
+            <DashboardSection title="Кошелек">
+              <ProfileShortcut
+                title="Платежи готовятся к подключению"
+                text="Сейчас оплата работает в тестовом режиме. Позже здесь появятся баланс, выплаты, комиссия и история операций."
+              />
             </DashboardSection>
           )}
         </section>
@@ -1249,6 +1285,33 @@ function EmptyState({ text }: { text: string }) {
   return (
     <div className="rounded-2xl bg-[#F7F7F5] px-5 py-4 text-sm text-[#6B6B6B]">
       {text}
+    </div>
+  );
+}
+
+function ProfileShortcut({
+  title,
+  text,
+  href,
+  action,
+}: {
+  title: string;
+  text: string;
+  href?: string;
+  action?: string;
+}) {
+  return (
+    <div className="rounded-[22px] bg-[#F7F7F5] p-5">
+      <h3 className="text-xl font-extrabold">{title}</h3>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6B6B6B]">{text}</p>
+      {href && action && (
+        <Link
+          href={href}
+          className="mt-5 inline-flex rounded-full bg-[#7BC47F] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#69B56E]"
+        >
+          {action}
+        </Link>
+      )}
     </div>
   );
 }
