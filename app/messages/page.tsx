@@ -107,6 +107,14 @@ export default function MessagesPage() {
       console.log("DIRECT MESSAGES LOAD ERROR:", messagesError);
     }
 
+    const { data: messageNotifications } = await supabase
+      .from("notifications")
+      .select("id, text, link, created_at, is_read")
+      .eq("user_id", currentUser.id)
+      .eq("type", "message")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
     const conversationMap = new Map<string, any>();
 
     (convs || []).forEach((conv: any) => {
@@ -127,26 +135,24 @@ export default function MessagesPage() {
       };
 
       if (!current.messages.some((item: any) => item.id === message.id)) {
+        const relatedNotice = (messageNotifications || []).find((notice: any) =>
+          notice.link?.startsWith(`/chat/${message.item_id}`)
+        );
+
         current.messages.push({
           id: message.id,
           text: message.text,
           created_at: message.created_at,
           sender_id: message.sender_id,
           receiver_id: message.receiver_id,
-          is_read: message.is_read,
+          is_read:
+            message.is_read ||
+            (relatedNotice?.is_read && message.receiver_id === currentUser.id),
         });
       }
 
       conversationMap.set(conv.id, current);
     });
-
-    const { data: messageNotifications } = await supabase
-      .from("notifications")
-      .select("id, text, link, created_at, is_read")
-      .eq("user_id", currentUser.id)
-      .eq("type", "message")
-      .order("created_at", { ascending: false })
-      .limit(50);
 
     const notificationChatLinks = (messageNotifications || [])
       .map((notice: any) => {

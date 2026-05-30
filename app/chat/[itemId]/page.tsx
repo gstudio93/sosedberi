@@ -261,6 +261,15 @@ if (currentUser) {
     })
     .eq("receiver_id", currentUser.id)
     .eq("conversation_id", conv.id);
+
+  await supabase
+    .from("notifications")
+    .update({
+      is_read: true,
+    })
+    .eq("user_id", currentUser.id)
+    .eq("type", "message")
+    .like("link", `/chat/${itemId}%`);
 }
   }
 
