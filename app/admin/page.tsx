@@ -323,6 +323,14 @@ export default function AdminPage() {
   );
   const openDisputes = disputes.filter((report) => report.status === "disputed");
   const closedDisputes = disputes.filter((report) => report.status === "resolved");
+  const userById = useMemo(
+    () =>
+      users.reduce((acc: Record<string, any>, user) => {
+        acc[user.id] = user;
+        return acc;
+      }, {}),
+    [users]
+  );
 
   const finance = useMemo(() => {
     const paidVolume = paidBookings.reduce(
@@ -571,6 +579,7 @@ export default function AdminPage() {
                     <DisputeRow
                       key={report.id}
                       report={report}
+                      userById={userById}
                       resolveDispute={resolveDispute}
                     />
                   ))
@@ -588,6 +597,7 @@ export default function AdminPage() {
                     <DisputeRow
                       key={report.id}
                       report={report}
+                      userById={userById}
                       resolveDispute={resolveDispute}
                     />
                   ))
@@ -765,13 +775,19 @@ function BookingRow({ booking }: { booking: any }) {
 
 function DisputeRow({
   report,
+  userById,
   resolveDispute,
 }: {
   report: any;
+  userById: Record<string, any>;
   resolveDispute: (report: any, resolution: "full_refund" | "partial_refund" | "withhold") => void;
 }) {
   const booking = report.bookings;
   const item = booking?.items;
+  const renter = booking?.renter_id ? userById[booking.renter_id] : null;
+  const owner = item?.owner_id ? userById[item.owner_id] : null;
+  const renterName = getProfileName(renter, "Арендатор");
+  const ownerName = getProfileName(owner, "Владелец");
   const deposit = Number(booking?.deposit_amount || item?.deposit || 0);
   const resolutionLabel: Record<string, string> = {
     full_refund: "Залог вернуть полностью",
@@ -800,19 +816,30 @@ function DisputeRow({
           <div className="mt-1 text-sm text-[#6B6B6B]">
             {report.type === "return" ? "Спор при возврате" : "Спор при передаче"} · Залог: {formatMoney(deposit)}
           </div>
+          <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+            <ParticipantLink label="Владелец" userId={item?.owner_id} name={ownerName} />
+            <ParticipantLink label="Арендатор" userId={booking?.renter_id} name={renterName} />
+          </div>
+          {booking?.start_date && booking?.end_date && (
+            <div className="mt-3 rounded-2xl bg-white p-3 text-sm text-[#6B6B6B]">
+              Даты аренды:{" "}
+              <span className="font-bold text-[#111111]">
+                {new Date(booking.start_date).toLocaleDateString("ru-RU")} -{" "}
+                {new Date(booking.end_date).toLocaleDateString("ru-RU")}
+              </span>
+            </div>
+          )}
           {report.dispute_comment && (
             <div className="mt-3 rounded-2xl bg-white p-3 text-sm text-[#333333]">
+              <div className="mb-1 text-xs font-bold uppercase text-[#8D8D8D]">Описание проблемы</div>
               {report.dispute_comment}
             </div>
           )}
+          {report.photos?.length > 0 && (
+            <PhotoStrip title="Фото акта" photos={report.photos} />
+          )}
           {report.dispute_photos?.length > 0 && (
-            <div className="mt-3 flex gap-2 overflow-x-auto">
-              {report.dispute_photos.map((photo: string) => (
-                <a key={photo} href={photo} target="_blank" className="shrink-0">
-                  <img src={photo} alt="" className="h-16 w-16 rounded-xl object-cover" />
-                </a>
-              ))}
-            </div>
+            <PhotoStrip title="Фото проблемы" photos={report.dispute_photos} />
           )}
           {report.status === "resolved" && (
             <div className="mt-3 rounded-2xl bg-white p-3 text-sm">
@@ -858,6 +885,50 @@ function DisputeRow({
             </>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function getProfileName(profile: any, fallback: string) {
+  return profile?.full_name || profile?.username || profile?.email || fallback;
+}
+
+function ParticipantLink({
+  label,
+  userId,
+  name,
+}: {
+  label: string;
+  userId?: string;
+  name: string;
+}) {
+  const content = (
+    <div className="rounded-2xl bg-white p-3">
+      <div className="text-xs font-bold uppercase text-[#8D8D8D]">{label}</div>
+      <div className="mt-1 break-words font-extrabold text-[#111111]">{name}</div>
+    </div>
+  );
+
+  if (!userId) return content;
+
+  return (
+    <Link href={`/user/${userId}`} className="block transition hover:-translate-y-0.5">
+      {content}
+    </Link>
+  );
+}
+
+function PhotoStrip({ title, photos }: { title: string; photos: string[] }) {
+  return (
+    <div className="mt-3 rounded-2xl bg-white p-3">
+      <div className="mb-2 text-xs font-bold uppercase text-[#8D8D8D]">{title}</div>
+      <div className="flex gap-2 overflow-x-auto">
+        {photos.map((photo) => (
+          <a key={photo} href={photo} target="_blank" className="shrink-0">
+            <img src={photo} alt="" className="h-16 w-16 rounded-xl object-cover" />
+          </a>
+        ))}
       </div>
     </div>
   );
