@@ -12,6 +12,7 @@ type Suggestion = {
 };
 
 const MAX_ITEM_PHOTO_SIZE = 20 * 1024 * 1024;
+const SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 function inferImageMimeType(fileName: string) {
   const extension = fileName.split(".").pop()?.toLowerCase();
@@ -28,6 +29,11 @@ function inferImageMimeType(fileName: string) {
 
 function isImageFile(file: File) {
   return file.type.startsWith("image/") || Boolean(inferImageMimeType(file.name));
+}
+
+function isSupportedPreviewImage(file: File) {
+  const contentType = file.type || inferImageMimeType(file.name);
+  return SUPPORTED_IMAGE_TYPES.includes(contentType);
 }
 
 export default function AddItemPage() {
@@ -62,6 +68,7 @@ function AddItemContent() {
   const [suggestionsMessage, setSuggestionsMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [uploadStatus, setUploadStatus] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loadingItem, setLoadingItem] = useState(!!editId);
   const suggestRequestId = useRef(0);
@@ -200,7 +207,9 @@ function AddItemContent() {
 
     setUploading(true);
     setUploadError("");
+    setUploadStatus(`Готовим ${files.length} фото к загрузке...`);
     const uploadedUrls: string[] = [];
+    let hadRejectedFile = false;
 
     const { data: auth } = await supabase.auth.getUser();
     const user = auth.user;
@@ -214,15 +223,26 @@ function AddItemContent() {
     try {
       for (const file of files) {
         if (!isImageFile(file)) {
+          hadRejectedFile = true;
           setUploadError("Можно загружать только изображения.");
           continue;
         }
 
+        if (!isSupportedPreviewImage(file)) {
+          hadRejectedFile = true;
+          setUploadError(
+            "Формат HEIC/HEIF пока не поддерживается в веб-версии. Выберите фото в JPG, PNG или WebP."
+          );
+          continue;
+        }
+
         if (file.size > MAX_ITEM_PHOTO_SIZE) {
+          hadRejectedFile = true;
           setUploadError("Фото слишком большое. Максимальный размер — 20 МБ.");
           continue;
         }
 
+        setUploadStatus(`Загружаем ${uploadedUrls.length + 1} из ${files.length}: ${file.name}`);
         const contentType = file.type || inferImageMimeType(file.name) || "image/jpeg";
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
         const fileName = `${user.id}/${crypto.randomUUID()}-${safeName}`;
@@ -237,6 +257,7 @@ function AddItemContent() {
 
         if (error) {
           console.log("ITEM PHOTO UPLOAD ERROR:", error);
+          hadRejectedFile = true;
           setUploadError(error.message || "Не удалось загрузить фото. Проверьте Storage bucket items.");
           setUploading(false);
           return;
@@ -251,12 +272,17 @@ function AddItemContent() {
 
       if (uploadedUrls.length > 0) {
         setImages((current) => [...current, ...uploadedUrls]);
+        setUploadStatus(`Загружено фото: ${uploadedUrls.length}`);
+      } else if (!hadRejectedFile) {
+        setUploadStatus("");
+        setUploadError("Не удалось загрузить выбранные фото. Попробуйте другие изображения.");
       }
     } catch (error) {
       console.log("ITEM PHOTO UPLOAD EXCEPTION:", error);
       setUploadError("Не удалось загрузить фото. Попробуйте выбрать другое изображение.");
     } finally {
       setUploading(false);
+      window.setTimeout(() => setUploadStatus(""), 2500);
     }
   }
 
@@ -352,7 +378,7 @@ function AddItemContent() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F7F7F5] px-6 pb-28 pt-32 text-[#111111]">
+    <main className="min-h-screen bg-[#F7F7F5] px-4 pb-28 pt-28 text-[#111111] sm:px-6 lg:pt-32">
       <div className="mx-auto max-w-7xl">
         <div className="mb-10 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
           <div>
@@ -360,27 +386,27 @@ function AddItemContent() {
               {isEditMode ? "Редактирование" : "Новое объявление"}
             </div>
 
-            <h1 className="max-w-3xl text-4xl font-black leading-tight lg:text-6xl">
+            <h1 className="max-w-3xl text-3xl font-black leading-tight sm:text-4xl lg:text-6xl">
               {isEditMode ? "Обновите объявление" : "Сдайте вещь соседям за пару минут"}
             </h1>
 
-            <p className="mt-4 max-w-2xl text-lg leading-relaxed text-[#6B6B6B]">
+            <p className="mt-4 max-w-2xl text-base leading-relaxed text-[#6B6B6B] sm:text-lg">
               {isEditMode
                 ? "После сохранения объявление останется опубликованным, но снова попадет администратору на проверку."
                 : "Добавьте фото, адрес, цену и описание. После публикации вещь появится в каталоге и на карте."}
             </p>
           </div>
 
-          <div className="rounded-[28px] bg-white px-6 py-5 text-sm font-bold text-[#6B6B6B] shadow-sm">
+          <div className="rounded-[24px] bg-white px-5 py-4 text-sm font-bold text-[#6B6B6B] shadow-sm lg:rounded-[28px] lg:px-6 lg:py-5">
             Комиссию и залог можно настроить позже в платежном сценарии.
           </div>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="grid gap-8 lg:grid-cols-[1fr_420px]"
+          className="grid gap-6 lg:grid-cols-[1fr_420px] lg:gap-8"
         >
-          <section className="space-y-6 rounded-[32px] border border-black/5 bg-white p-5 shadow-sm lg:p-8">
+          <section className="space-y-6 rounded-[28px] border border-black/5 bg-white p-4 shadow-sm sm:p-5 lg:rounded-[32px] lg:p-8">
             <div>
               <label className="mb-2 block text-sm font-bold text-[#6B6B6B]">
                 Название вещи
@@ -527,7 +553,7 @@ function AddItemContent() {
                 <input
                   type="file"
                   multiple
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []);
                     uploadImages(files);
@@ -540,9 +566,14 @@ function AddItemContent() {
                   {uploading ? "Загружаем фото..." : "Выбрать фото"}
                 </span>
                 <span className="mt-1 text-sm text-[#6B6B6B]">
-                  Лучше добавить 3-5 фото с разных ракурсов
+                  JPG, PNG или WebP. Лучше добавить 3-5 фото с разных ракурсов.
                 </span>
               </label>
+              {uploadStatus && (
+                <div className="mt-3 rounded-2xl bg-[#E8F7EA] px-4 py-3 text-sm font-bold text-[#3F9E47]">
+                  {uploadStatus}
+                </div>
+              )}
               {uploadError && (
                 <div className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
                   {uploadError}
@@ -557,7 +588,7 @@ function AddItemContent() {
                         index === 0 ? "border-[#7BC47F]" : "border-black/10"
                       }`}
                     >
-                      <img src={img} alt="" className="h-28 w-full object-cover" />
+                      <img src={img} alt="" className="h-32 w-full object-cover sm:h-28" />
 
                       {index === 0 && (
                         <div className="absolute left-2 top-2 rounded-full bg-[#7BC47F] px-2 py-1 text-xs font-bold text-white">
@@ -592,7 +623,7 @@ function AddItemContent() {
           </section>
 
           <aside className="h-fit space-y-5 lg:sticky lg:top-32">
-            <div className="overflow-hidden rounded-[32px] bg-white shadow-sm">
+            <div className="overflow-hidden rounded-[28px] bg-white shadow-sm lg:rounded-[32px]">
               <img
                 src={previewImage}
                 alt="Превью объявления"
