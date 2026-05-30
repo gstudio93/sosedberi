@@ -746,7 +746,7 @@ export default function ProfilePage() {
   ] as const;
 
   return (
-    <main className="min-h-screen bg-[#F7F7F5] px-6 pb-24 pt-32 text-[#111111]">
+    <main className="min-h-screen bg-[#F7F7F5] px-4 pb-28 pt-28 text-[#111111] sm:px-6 lg:pb-24 lg:pt-32">
       {!emailVerified && (
         <div className="mx-auto mb-6 max-w-7xl rounded-[24px] border border-yellow-200 bg-yellow-50 px-5 py-4 text-sm text-[#111111]">
           <div className="font-bold">Подтвердите email</div>
@@ -762,9 +762,9 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div className="mx-auto grid max-w-7xl gap-7 lg:grid-cols-[270px_1fr]">
+      <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[270px_1fr] lg:gap-7">
         <aside className="h-fit overflow-hidden rounded-[24px] border border-black/5 bg-white shadow-sm">
-          <div className="border-b border-black/5 p-5">
+          <div className="border-b border-black/5 p-4 sm:p-5">
             <div className="flex items-center gap-3">
               <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-xl font-extrabold text-white">
                 {avatar ? (
@@ -805,12 +805,12 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <nav className="p-3">
+          <nav className="flex gap-2 overflow-x-auto p-3 lg:block lg:space-y-1 lg:overflow-visible">
             {navItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`mb-1 flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
+                className={`flex shrink-0 items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-bold transition lg:mb-1 lg:w-full ${
                   activeTab === item.id
                     ? "bg-[#E8F7EA] text-[#3F9E47]"
                     : "text-[#333333] hover:bg-[#F7F7F5]"
@@ -830,7 +830,7 @@ export default function ProfilePage() {
             ))}
           </nav>
 
-          <div className="p-5 pt-2">
+          <div className="hidden p-5 pt-2 lg:block">
             <button
               onClick={logout}
               className="w-full rounded-2xl border border-black/10 bg-white px-5 py-3 text-sm font-bold transition hover:bg-[#F7F7F5]"
@@ -1110,8 +1110,8 @@ function ProfileHeader({
 }) {
   return (
     <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-start">
-      <div>
-        <h1 className="text-4xl font-extrabold">{getTabTitle(activeTab)}</h1>
+      <div className="min-w-0">
+        <h1 className="break-words text-3xl font-extrabold sm:text-4xl">{getTabTitle(activeTab)}</h1>
         <p className="mt-3 max-w-2xl text-base text-[#6B6B6B]">
           {getTabDescription(activeTab, displayName)}
         </p>
@@ -1119,7 +1119,7 @@ function ProfileHeader({
 
       <Link
         href={`/user/${userId}`}
-        className="rounded-2xl border border-black/10 bg-white px-5 py-3.5 text-sm font-bold shadow-sm transition hover:bg-[#F7F7F5]"
+        className="w-fit rounded-2xl border border-black/10 bg-white px-5 py-3.5 text-sm font-bold shadow-sm transition hover:bg-[#F7F7F5]"
       >
         Посмотреть профиль ↗
       </Link>
@@ -1225,7 +1225,7 @@ function DashboardSection({
   onClick?: () => void;
 }) {
   return (
-    <section className="mt-5 rounded-[24px] border border-black/5 bg-white p-5 shadow-sm lg:p-6">
+    <section className="mt-5 rounded-[24px] border border-black/5 bg-white p-4 shadow-sm sm:p-5 lg:p-6">
       <div className="mb-4 flex items-center justify-between gap-4">
         <h2 className="text-xl font-extrabold">{title}</h2>
 
@@ -1300,7 +1300,7 @@ function IncomingBookingRow({
       <img
         src={booking.items?.image || "/hero.jpg"}
         alt=""
-        className="h-24 w-full rounded-2xl object-cover"
+        className="h-36 w-full rounded-2xl object-cover sm:h-28 md:h-24"
       />
 
       <div className="min-w-0">
@@ -1341,7 +1341,7 @@ function IncomingBookingRow({
         )}
       </div>
 
-      <div className="flex flex-col gap-2">
+       <div className="flex flex-col gap-2">
           <Link
             href={`/chat/${booking.item_id}?owner=${booking.renter_id}&booking=${booking.id}`}
             className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-center text-sm font-bold transition hover:bg-[#F7F7F5]"
@@ -1453,10 +1453,10 @@ function MyBookingRow({
       <img
         src={booking.items?.image || "/hero.jpg"}
         alt=""
-        className="h-20 w-full rounded-2xl object-cover"
+        className="h-36 w-full rounded-2xl object-cover sm:h-28 md:h-20"
       />
 
-      <div>
+      <div className="min-w-0">
         <h3 className="line-clamp-1 text-base font-extrabold">
           {booking.items?.name || "Объявление"}
         </h3>
@@ -1939,10 +1939,10 @@ function OwnerItemCard({
         <div className="mt-4 text-xl font-extrabold">{item.price} ₽</div>
         <div className="text-xs uppercase text-[#8D8D8D]">/ день</div>
 
-        <div className="mt-5 flex gap-2">
+        <div className="mt-5 flex flex-wrap gap-2">
           <Link
             href={`/item/${item.id}`}
-            className="flex-1 rounded-full bg-white px-4 py-3 text-center text-sm font-bold"
+            className="min-w-[120px] flex-1 rounded-full bg-white px-4 py-3 text-center text-sm font-bold"
           >
             Открыть
           </Link>
