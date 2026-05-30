@@ -12,6 +12,10 @@ registerLocale("ru", ru);
 
 import { supabase } from "../../../lib/supabase";
 
+function toBookingDate(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+}
+
 export default function ItemPage() {
   const params = useParams();
   const id = params.id as string;
@@ -160,10 +164,13 @@ async function loadRelatedItems() {
       return;
     }
 
+    const normalizedStartDate = toBookingDate(startDate);
+    const normalizedEndDate = toBookingDate(endDate);
+
     const hasConflict = bookings.some((booking: any) => {
       return (
-        startDate <= new Date(booking.end_date) &&
-        endDate >= new Date(booking.start_date)
+        normalizedStartDate <= new Date(booking.end_date) &&
+        normalizedEndDate >= new Date(booking.start_date)
       );
     });
 
@@ -176,8 +183,8 @@ async function loadRelatedItems() {
       {
         item_id: item.id,
         renter_id: user.id,
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
+        start_date: normalizedStartDate.toISOString(),
+        end_date: normalizedEndDate.toISOString(),
         status: "pending",
         payment_status: "unpaid",
       },
