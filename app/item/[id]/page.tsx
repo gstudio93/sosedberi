@@ -246,6 +246,11 @@ function getTotalWithDeposit() {
   return getTotalPrice() + getDepositAmount();
 }
 
+const ownerDisplayName =
+  ownerProfile?.full_name ||
+  ownerProfile?.username ||
+  ownerProfile?.email ||
+  "Пользователь";
 const latitude = Number(item.latitude);
 const longitude = Number(item.longitude);
 const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
@@ -254,27 +259,27 @@ const mapSrc = hasCoordinates
   : `https://yandex.ru/map-widget/v1/?text=${encodeURIComponent(item.location || "Россия")}&z=15`;
 
   return (
-    <main className="min-h-screen bg-[#F7F7F5] px-6 pb-32 pt-28 text-[#111111] lg:pb-20 lg:pt-32">
+    <main className="min-h-screen bg-[#F7F7F5] px-4 pb-44 pt-28 text-[#111111] sm:px-6 lg:pb-20 lg:pt-32">
             <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* LEFT */}
         <div>
           <button
   onClick={() => setGalleryOpen(true)}
-  className="block w-full overflow-hidden rounded-[36px] bg-white shadow-xl"
+  className="block w-full overflow-hidden rounded-[28px] bg-white shadow-xl lg:rounded-[36px]"
 >
   <img
     src={activeImage || item.image}
     alt={item.name}
-    className="h-[360px] w-full object-cover lg:h-[620px]"
+    className="h-[330px] w-full object-cover sm:h-[420px] lg:h-[620px]"
   />
 </button>
-<div className="mt-4 flex gap-3">
+<div className="mt-4 flex gap-3 overflow-x-auto pb-1">
   {(item.images?.length ? item.images : [item.image]).map(
   (img: string, index: number) => (
     <button
       key={index}
       onClick={() => setActiveImage(img)}
-      className={`h-20 w-20 overflow-hidden rounded-2xl border-2 transition ${
+      className={`h-16 w-16 shrink-0 overflow-hidden rounded-2xl border-2 transition sm:h-20 sm:w-20 ${
         activeImage === img
           ? "border-[#7BC47F]"
           : "border-transparent"
@@ -290,14 +295,14 @@ const mapSrc = hasCoordinates
 )}
 </div>
 
-          <p className="mt-4 text-base text-[#6B6B6B]">
+          <p className="mt-4 break-words text-sm leading-6 text-[#6B6B6B] sm:text-base">
             📍 {item.location}
           </p>
 
-          <div className="mt-10 overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-sm lg:rounded-[32px]">
+          <div className="mt-8 overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-sm lg:mt-10 lg:rounded-[32px]">
   <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_360px]">
     {/* OWNER INFO */}
-    <div className="min-w-0 p-5 sm:p-6 lg:p-8">
+    <div className="min-w-0 overflow-hidden p-5 sm:p-6 lg:p-8">
       <div className="flex min-w-0 items-center gap-3 sm:gap-4 lg:gap-5">
         <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#7BC47F] text-2xl font-black text-white lg:h-20 lg:w-20 lg:text-4xl">
           {ownerProfile?.avatar ? (
@@ -313,22 +318,22 @@ const mapSrc = hasCoordinates
           )}
         </div>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 overflow-hidden">
           <div className="text-sm text-[#6B6B6B]">
             Владелец
           </div>
 
           <a
             href={`/user/${item.owner_id}`}
-            className="block max-w-full truncate text-[26px] font-black leading-tight lg:text-4xl"
-            title={ownerProfile?.full_name || ownerProfile?.username || ownerProfile?.email || "Пользователь"}
+            className="block max-w-full break-words text-xl font-black leading-tight sm:text-2xl lg:text-4xl"
+            title={ownerDisplayName}
           >
-            {ownerProfile?.full_name || ownerProfile?.username || ownerProfile?.email || "Пользователь"}
+            {ownerDisplayName}
           </a>
         </div>
       </div>
 
-      <div className="mt-7 grid min-w-0 gap-3 text-[17px] text-[#111111] sm:text-base">
+      <div className="mt-7 grid min-w-0 gap-3 text-base text-[#111111] sm:text-[17px]">
         {ownerProfile?.verified && (
   <div className="flex min-w-0 items-start gap-3 leading-snug">
     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
@@ -366,7 +371,7 @@ const mapSrc = hasCoordinates
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#7BC47F] text-[#7BC47F]">
             📍
           </span>
-          <span className="min-w-0 break-words">{item.location}</span>
+          <span className="min-w-0 break-words leading-snug">{item.location || "Адрес не указан"}</span>
         </div>
 
         <div className="flex min-w-0 items-start gap-3 leading-snug">
@@ -388,7 +393,7 @@ const mapSrc = hasCoordinates
     </div>
 
     {/* MAP */}
-    <div className="relative min-h-[260px] overflow-hidden bg-[#F7F7F5]">
+    <div className="relative min-h-[260px] overflow-hidden border-t border-black/5 bg-[#F7F7F5] lg:border-l lg:border-t-0">
       <iframe
         src={mapSrc}
         title={`Адрес передачи: ${item.location || "Россия"}`}
@@ -396,7 +401,7 @@ const mapSrc = hasCoordinates
         loading="lazy"
       />
       {item.location && (
-        <div className="absolute bottom-4 left-4 right-4 rounded-2xl bg-white/95 px-4 py-3 text-sm font-bold text-[#111111] shadow-lg backdrop-blur">
+        <div className="absolute bottom-4 left-4 right-4 rounded-2xl bg-white/95 px-4 py-3 text-sm font-bold leading-5 text-[#111111] shadow-lg backdrop-blur">
           📍 {item.location}
         </div>
       )}
@@ -404,15 +409,15 @@ const mapSrc = hasCoordinates
   </div>
 </div>
 
-          <div className="mt-6 rounded-[28px] bg-white p-6 shadow-sm lg:p-8">
+          <div className="mt-6 rounded-[28px] bg-white p-5 shadow-sm sm:p-6 lg:p-8">
             <h2 className="text-2xl font-black lg:text-3xl">Описание</h2>
 
-            <p className="mt-5 text-lg leading-relaxed text-[#555555]">
+            <p className="mt-5 break-words text-base leading-relaxed text-[#555555] sm:text-lg">
               {item.description || "Описание не указано"}
             </p>
           </div>
 
-          <div className="mt-10 rounded-[32px] border border-black/5 bg-white p-8 shadow-sm">
+          <div className="mt-8 rounded-[28px] border border-black/5 bg-white p-5 shadow-sm sm:p-6 lg:mt-10 lg:rounded-[32px] lg:p-8">
             <h2 className="text-2xl font-black">Отзывы</h2>
 
             <p className="mt-3 text-sm leading-relaxed text-[#6B6B6B]">
@@ -680,10 +685,10 @@ calendarStartDay={1}
 )}
 
 {/* MOBILE BOOKING BAR */}
-<div className="fixed bottom-0 left-0 right-0 z-[90] border-t border-black/10 bg-white p-4 shadow-2xl lg:hidden">
+<div className="fixed bottom-[76px] left-0 right-0 z-[90] border-t border-black/10 bg-white/95 p-3 shadow-2xl backdrop-blur lg:hidden">
   <div className="flex items-center justify-between gap-4">
-    <div>
-      <div className="text-lg font-black">
+    <div className="min-w-0">
+      <div className="truncate text-lg font-black">
         {startDate && endDate
           ? `${getTotalPrice()} ₽`
           : `${item.price} ₽`}
@@ -698,7 +703,7 @@ calendarStartDay={1}
 
     <button
       onClick={handleBooking}
-      className="rounded-full bg-[#7BC47F] px-6 py-4 text-sm font-bold text-white"
+      className="shrink-0 rounded-full bg-[#7BC47F] px-6 py-4 text-sm font-bold text-white"
     >
       Забронировать
     </button>
