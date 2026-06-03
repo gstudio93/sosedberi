@@ -39,6 +39,14 @@ type ItemRating = {
 
 type SortMode = "new" | "price_asc" | "price_desc";
 
+type Collection = {
+  title: string;
+  text: string;
+  category: string;
+  query?: string;
+  city?: string;
+};
+
 const CATALOG_CATEGORIES = [
   "Инструменты",
   "Техника",
@@ -70,6 +78,34 @@ const CATALOG_CITIES = [
   "Тихорецк",
 ];
 
+const COLLECTIONS: Collection[] = [
+  {
+    title: "Инструменты для ремонта",
+    text: "Перфораторы, пилы, уровни и техника для работ дома.",
+    category: "Инструменты",
+    query: "",
+  },
+  {
+    title: "Отдых у моря",
+    text: "Палатки, SUP-доски, матрасы и снаряжение для поездки.",
+    category: "Для отдыха",
+    city: "Сочи",
+  },
+  {
+    title: "Для детей",
+    text: "Коляски, велосипеды, самокаты и автокресла.",
+    category: "Детские товары",
+  },
+  {
+    title: "Для дома",
+    text: "Пылесосы, пароочистители, проекторы и полезная техника.",
+    category: "Для дома",
+  },
+];
+
+const INITIAL_VISIBLE_COUNT = 18;
+const LOAD_MORE_COUNT = 12;
+
 export default function CatalogPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
@@ -84,6 +120,7 @@ export default function CatalogPage() {
   const [onlyWithPhoto, setOnlyWithPhoto] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("new");
   const [initialFiltersLoaded, setInitialFiltersLoaded] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_COUNT);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -103,6 +140,8 @@ export default function CatalogPage() {
 
   useEffect(() => {
     if (!initialFiltersLoaded) return;
+
+    setVisibleCount(INITIAL_VISIBLE_COUNT);
 
     const params = new URLSearchParams();
 
@@ -250,6 +289,18 @@ export default function CatalogPage() {
     setSortMode("new");
   }
 
+  function applyCollection(collection: Collection) {
+    setSearch(collection.query || "");
+    setCategory(collection.category);
+    setCity(collection.city || "");
+    setPriceMin("");
+    setPriceMax("");
+    setDepositMax("");
+    setOnlyWithPhoto(false);
+    setSortMode("new");
+    setVisibleCount(INITIAL_VISIBLE_COUNT);
+  }
+
   const filteredItems = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     const min = Number(priceMin) || 0;
@@ -351,6 +402,8 @@ export default function CatalogPage() {
     sortMode === "price_asc" ? "сначала дешевле" : "",
     sortMode === "price_desc" ? "сначала дороже" : "",
   ].filter(Boolean);
+  const visibleItems = filteredItems.slice(0, visibleCount);
+  const hasMoreItems = filteredItems.length > visibleItems.length;
 
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-4 pb-24 pt-28 text-[#111111] sm:px-6 lg:pt-32">
@@ -440,6 +493,35 @@ export default function CatalogPage() {
           </div>
         </section>
 
+        <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {COLLECTIONS.map((collection) => {
+            const active =
+              category === collection.category &&
+              (!collection.city || city === collection.city) &&
+              (!collection.query || search === collection.query);
+
+            return (
+              <button
+                key={collection.title}
+                type="button"
+                onClick={() => applyCollection(collection)}
+                className={`rounded-[22px] border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                  active
+                    ? "border-[#7BC47F] bg-[#F1FAF2]"
+                    : "border-black/5 bg-white"
+                }`}
+              >
+                <div className="text-sm font-black text-[#111111]">
+                  {collection.title}
+                </div>
+                <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-[#6B6B6B]">
+                  {collection.text}
+                </p>
+              </button>
+            );
+          })}
+        </section>
+
         <div className="grid gap-6 lg:grid-cols-[310px_minmax(0,1fr)]">
           <aside className="hidden lg:block">
             <FiltersPanel
@@ -525,7 +607,7 @@ export default function CatalogPage() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-2 xl:grid-cols-3">
-                {filteredItems.map((item) => (
+                {visibleItems.map((item) => (
                   <CatalogCard
                     key={item.id}
                     favorite={favoriteIds.includes(item.id)}
@@ -533,6 +615,23 @@ export default function CatalogPage() {
                     onFavorite={() => toggleFavorite(item.id)}
                   />
                 ))}
+              </div>
+            )}
+
+            {hasMoreItems && (
+              <div className="mt-8 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setVisibleCount((current) => current + LOAD_MORE_COUNT)
+                  }
+                  className="rounded-full bg-[#111111] px-7 py-4 text-sm font-black text-white shadow-sm transition hover:bg-[#2A2A2A]"
+                >
+                  Показать еще {Math.min(
+                    LOAD_MORE_COUNT,
+                    filteredItems.length - visibleItems.length
+                  )}
+                </button>
               </div>
             )}
           </section>
