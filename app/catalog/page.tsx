@@ -40,11 +40,15 @@ type ItemRating = {
   count: number;
 };
 
-type SortMode = "new" | "price_asc" | "price_desc";
+type SortMode = "new" | "popular" | "rated" | "price_asc" | "price_desc";
 
 type Coordinates = {
   latitude: number;
   longitude: number;
+};
+
+type CatalogItem = Item & {
+  distanceKm?: number;
 };
 
 type Collection = {
@@ -381,13 +385,16 @@ export default function CatalogPage() {
     const max = Number(priceMax) || 0;
     const maxDeposit = Number(depositMax) || 0;
 
-    const filtered = items.filter((item) => {
+    const filtered = items.reduce<CatalogItem[]>((result, item) => {
       const itemName = item.name.toLowerCase();
       const itemDescription = (item.description || "").toLowerCase();
       const itemLocation = (item.location || item.city || "").toLowerCase();
       const itemPrice = Number(item.price) || 0;
       const itemDeposit = Number(item.deposit) || 0;
       const itemCoords = getItemCoordinates(item);
+      const distanceKm = userCoords && itemCoords
+        ? getDistanceKm(userCoords, itemCoords)
+        : undefined;
 
       if (
         normalizedSearch &&
@@ -395,31 +402,44 @@ export default function CatalogPage() {
         !itemDescription.includes(normalizedSearch) &&
         !itemLocation.includes(normalizedSearch)
       ) {
-        return false;
+        return result;
       }
 
-      if (category && item.category !== category) return false;
-      if (city && !itemLocation.includes(city.toLowerCase())) return false;
+      if (category && item.category !== category) return result;
+      if (city && !itemLocation.includes(city.toLowerCase())) return result;
       if (nearMe) {
-        if (!userCoords || !itemCoords) return false;
-
-        const distance = getDistanceKm(userCoords, itemCoords);
-        if (distance > NEARBY_RADIUS_KM) return false;
+        if (typeof distanceKm !== "number") return result;
+        if (distanceKm > NEARBY_RADIUS_KM) return result;
       }
-      if (min && itemPrice < min) return false;
-      if (max && itemPrice > max) return false;
-      if (maxDeposit && itemDeposit > maxDeposit) return false;
-      if (onlyWithPhoto && !item.image) return false;
+      if (min && itemPrice < min) return result;
+      if (max && itemPrice > max) return result;
+      if (maxDeposit && itemDeposit > maxDeposit) return result;
+      if (onlyWithPhoto && !item.image) return result;
 
-      return true;
-    });
+      result.push({
+        ...item,
+        distanceKm,
+      });
+
+      return result;
+    }, []);
 
     return filtered.sort((first, second) => {
       const firstPrice = Number(first.price) || 0;
       const secondPrice = Number(second.price) || 0;
+      const firstRating = first.rating?.average || 0;
+      const secondRating = second.rating?.average || 0;
+      const firstReviews = first.rating?.count || 0;
+      const secondReviews = second.rating?.count || 0;
 
       if (sortMode === "price_asc") return firstPrice - secondPrice;
       if (sortMode === "price_desc") return secondPrice - firstPrice;
+      if (sortMode === "rated") {
+        return secondRating - firstRating || secondReviews - firstReviews;
+      }
+      if (sortMode === "popular") {
+        return secondReviews - firstReviews || secondRating - firstRating;
+      }
       return 0;
     });
   }, [
@@ -516,6 +536,12 @@ export default function CatalogPage() {
     sortMode === "price_desc"
       ? { key: "priceDesc", label: "сначала дороже", onRemove: () => setSortMode("new") }
       : null,
+    sortMode === "popular"
+      ? { key: "popular", label: "популярные", onRemove: () => setSortMode("new") }
+      : null,
+    sortMode === "rated"
+      ? { key: "rated", label: "с отзывами", onRemove: () => setSortMode("new") }
+      : null,
   ].filter(Boolean) as Array<{
     key: string;
     label: string;
@@ -605,6 +631,8 @@ export default function CatalogPage() {
               className="hidden h-14 rounded-full border border-black/10 bg-white px-5 text-sm font-black outline-none lg:block"
             >
               <option value="new">Сначала новые</option>
+              <option value="popular">Популярные</option>
+              <option value="rated">С отзывами</option>
               <option value="price_asc">Сначала дешевле</option>
               <option value="price_desc">Сначала дороже</option>
             </select>
@@ -738,14 +766,27 @@ export default function CatalogPage() {
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F7F7F5] text-2xl">
                   ⌕
                 </div>
-                <h2 className="mt-4 text-2xl font-black">Ничего не найдено</h2>
+                <h2 className="mt-4 text-2xl font-black">
+                  {nearMe ? "Рядом пока нет вещей" : "Ничего не найдено"}
+                </h2>
                 <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[#6B6B6B]">
-                  Попробуйте убрать часть фильтров или поискать похожее название.
+                  {nearMe
+                    ? `Мы проверили объявления в радиусе ${NEARBY_RADIUS_KM} км. Можно снять фильтр рядом или посмотреть весь каталог.`
+                    : "Попробуйте убрать часть фильтров или поискать похожее название."}
                 </p>
+                {nearMe && (
+                  <button
+                    type="button"
+                    onClick={clearNearMe}
+                    className="mt-6 rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-black text-[#111111] transition hover:border-[#7BC47F]"
+                  >
+                    Убрать фильтр рядом
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={resetFilters}
-                  className="mt-6 rounded-full bg-[#7BC47F] px-6 py-3 text-sm font-black text-white"
+                  className={`${nearMe ? "ml-0 mt-3 sm:ml-3 sm:mt-6" : "mt-6"} rounded-full bg-[#7BC47F] px-6 py-3 text-sm font-black text-white`}
                 >
                   Показать все
                 </button>
@@ -976,6 +1017,8 @@ function FiltersPanel({
           className="h-12 w-full rounded-2xl border border-black/10 bg-[#F7F7F5] px-4 text-sm font-bold outline-none focus:border-[#7BC47F]"
         >
           <option value="new">Сначала новые</option>
+          <option value="popular">Популярные</option>
+          <option value="rated">С отзывами</option>
           <option value="price_asc">Сначала дешевле</option>
           <option value="price_desc">Сначала дороже</option>
         </select>
@@ -1000,7 +1043,7 @@ function CatalogCard({
   onFavorite,
 }: {
   favorite: boolean;
-  item: Item;
+  item: CatalogItem;
   onFavorite: () => void;
 }) {
   const location = item.location || item.city || "Город не указан";
@@ -1079,6 +1122,11 @@ function CatalogCard({
           <p className="mt-1 line-clamp-2 min-h-[32px] text-xs leading-snug text-[#6B6B6B] sm:text-sm">
             {location}
           </p>
+          {typeof item.distanceKm === "number" && (
+            <p className="mt-1 text-xs font-black text-[#3F9E47]">
+              {formatDistance(item.distanceKm)} от вас
+            </p>
+          )}
 
           <div className="mt-3 flex items-end justify-between gap-2">
             <div>
@@ -1288,4 +1336,16 @@ function getDistanceKm(first: Coordinates, second: Coordinates) {
 
 function toRadians(value: number) {
   return (value * Math.PI) / 180;
+}
+
+function formatDistance(distanceKm: number) {
+  if (distanceKm < 1) {
+    return `${Math.max(100, Math.round((distanceKm * 1000) / 50) * 50)} м`;
+  }
+
+  if (distanceKm < 10) {
+    return `${distanceKm.toFixed(1).replace(".", ",")} км`;
+  }
+
+  return `${Math.round(distanceKm)} км`;
 }
