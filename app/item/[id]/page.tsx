@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -19,7 +19,9 @@ function toBookingDate(date: Date) {
 
 export default function ItemPage() {
   const params = useParams();
-  const id = getItemIdFromParam(params.id as string);
+  const router = useRouter();
+  const rawId = params.id as string;
+  const id = getItemIdFromParam(rawId);
 
   const [item, setItem] = useState<any>(null);
   const [ownerProfile, setOwnerProfile] = useState<any>(null);
@@ -53,6 +55,10 @@ export default function ItemPage() {
 
   if (item?.category) {
     loadRelatedItems();
+  }
+
+  if (item?.id && rawId !== getItemUrl(item).replace("/item/", "")) {
+    router.replace(getItemUrl(item));
   }
 }, [item]);
 
