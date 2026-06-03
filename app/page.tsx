@@ -340,6 +340,9 @@ export default function HomePage() {
       if (country?.name === "Россия" && selectedCity?.name) {
         setCurrentCity(selectedCity.name);
         setCity(selectedCity.name);
+        setLocationModalOpen(false);
+        router.push(`/catalog?city=${encodeURIComponent(selectedCity.name)}`);
+        return;
       } else {
         setCurrentCity("Россия");
         setCity("");
@@ -351,6 +354,17 @@ export default function HomePage() {
       setCurrentCity("Ваш город");
       setLocationModalOpen(false);
     }
+  }
+
+  function openCurrentCityCatalog() {
+    const cityName = currentCity.trim();
+
+    if (cityName && cityName !== "Ваш город" && cityName !== "Россия") {
+      router.push(`/catalog?city=${encodeURIComponent(cityName)}`);
+      return;
+    }
+
+    setLocationModalOpen(true);
   }
 
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
@@ -507,7 +521,7 @@ export default function HomePage() {
               <div className="mt-5 flex flex-wrap items-center gap-3 text-sm font-bold">
                 <button
                   type="button"
-                  onClick={() => setLocationModalOpen(true)}
+                  onClick={openCurrentCityCatalog}
                   className="rounded-full bg-white/85 px-4 py-2 shadow-sm transition hover:bg-white"
                 >
                   ⌖ {currentCity}

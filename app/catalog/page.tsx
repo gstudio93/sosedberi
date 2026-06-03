@@ -13,6 +13,8 @@ type Item = {
   description?: string | null;
   price?: number | string | null;
   deposit?: number | string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   location?: string | null;
   city?: string | null;
   category?: string | null;
@@ -39,6 +41,11 @@ type ItemRating = {
 };
 
 type SortMode = "new" | "price_asc" | "price_desc";
+
+type Coordinates = {
+  latitude: number;
+  longitude: number;
+};
 
 type Collection = {
   title: string;
@@ -106,6 +113,7 @@ const COLLECTIONS: Collection[] = [
 
 const INITIAL_VISIBLE_COUNT = 18;
 const LOAD_MORE_COUNT = 12;
+const NEARBY_RADIUS_KM = 30;
 
 export default function CatalogPage() {
   const [items, setItems] = useState<Item[]>([]);
@@ -118,6 +126,10 @@ export default function CatalogPage() {
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
   const [depositMax, setDepositMax] = useState("");
+  const [nearMe, setNearMe] = useState(false);
+  const [nearLoading, setNearLoading] = useState(false);
+  const [nearError, setNearError] = useState("");
+  const [userCoords, setUserCoords] = useState<Coordinates | null>(null);
   const [onlyWithPhoto, setOnlyWithPhoto] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("new");
   const [initialFiltersLoaded, setInitialFiltersLoaded] = useState(false);
@@ -132,6 +144,10 @@ export default function CatalogPage() {
     setPriceMin(params.get("priceMin") || "");
     setPriceMax(params.get("priceMax") || "");
     setDepositMax(params.get("depositMax") || "");
+    const coordinates = parseCoordinates(params.get("lat"), params.get("lng"));
+
+    setNearMe(params.get("near") === "1" && Boolean(coordinates));
+    setUserCoords(coordinates);
     setOnlyWithPhoto(params.get("photo") === "1");
     setSortMode((params.get("sort") as SortMode) || "new");
     setInitialFiltersLoaded(true);
@@ -152,6 +168,11 @@ export default function CatalogPage() {
     if (priceMin) params.set("priceMin", priceMin);
     if (priceMax) params.set("priceMax", priceMax);
     if (depositMax) params.set("depositMax", depositMax);
+    if (nearMe && userCoords) {
+      params.set("near", "1");
+      params.set("lat", String(userCoords.latitude));
+      params.set("lng", String(userCoords.longitude));
+    }
     if (onlyWithPhoto) params.set("photo", "1");
     if (sortMode !== "new") params.set("sort", sortMode);
 
@@ -164,11 +185,13 @@ export default function CatalogPage() {
     city,
     depositMax,
     initialFiltersLoaded,
+    nearMe,
     onlyWithPhoto,
     priceMax,
     priceMin,
     search,
     sortMode,
+    userCoords,
   ]);
 
   async function loadItems() {
@@ -286,8 +309,57 @@ export default function CatalogPage() {
     setPriceMin("");
     setPriceMax("");
     setDepositMax("");
+    setNearMe(false);
+    setNearError("");
+    setUserCoords(null);
     setOnlyWithPhoto(false);
     setSortMode("new");
+  }
+
+  function clearNearMe() {
+    setNearMe(false);
+    setNearError("");
+    setUserCoords(null);
+  }
+
+  function changeCityFilter(value: string) {
+    setCity(value);
+
+    if (value) {
+      clearNearMe();
+    }
+  }
+
+  function requestNearbyItems() {
+    setNearError("");
+
+    if (!navigator.geolocation) {
+      setNearError("Браузер не поддерживает определение местоположения.");
+      return;
+    }
+
+    setNearLoading(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserCoords({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setNearMe(true);
+        setCity("");
+        setNearLoading(false);
+      },
+      () => {
+        setNearError("Не удалось получить геолокацию. Разрешите доступ к местоположению.");
+        setNearLoading(false);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 60000,
+        timeout: 10000,
+      }
+    );
   }
 
   function applyCollection(collection: Collection) {
@@ -297,6 +369,7 @@ export default function CatalogPage() {
     setPriceMin("");
     setPriceMax("");
     setDepositMax("");
+    clearNearMe();
     setOnlyWithPhoto(false);
     setSortMode("new");
     setVisibleCount(INITIAL_VISIBLE_COUNT);
@@ -314,6 +387,7 @@ export default function CatalogPage() {
       const itemLocation = (item.location || item.city || "").toLowerCase();
       const itemPrice = Number(item.price) || 0;
       const itemDeposit = Number(item.deposit) || 0;
+      const itemCoords = getItemCoordinates(item);
 
       if (
         normalizedSearch &&
@@ -326,6 +400,12 @@ export default function CatalogPage() {
 
       if (category && item.category !== category) return false;
       if (city && !itemLocation.includes(city.toLowerCase())) return false;
+      if (nearMe) {
+        if (!userCoords || !itemCoords) return false;
+
+        const distance = getDistanceKm(userCoords, itemCoords);
+        if (distance > NEARBY_RADIUS_KM) return false;
+      }
       if (min && itemPrice < min) return false;
       if (max && itemPrice > max) return false;
       if (maxDeposit && itemDeposit > maxDeposit) return false;
@@ -347,11 +427,13 @@ export default function CatalogPage() {
     city,
     depositMax,
     items,
+    nearMe,
     onlyWithPhoto,
     priceMax,
     priceMin,
     search,
     sortMode,
+    userCoords,
   ]);
 
   const categoryCounts = useMemo(
@@ -388,21 +470,57 @@ export default function CatalogPage() {
     priceMin,
     priceMax,
     depositMax,
+    nearMe ? "near" : "",
     onlyWithPhoto ? "photo" : "",
     sortMode !== "new" ? sortMode : "",
   ].filter(Boolean).length;
 
   const activeFilterLabels = [
-    search.trim() ? `Поиск: ${search.trim()}` : "",
-    category,
-    city,
-    priceMin ? `от ${Number(priceMin).toLocaleString("ru-RU")} ₽` : "",
-    priceMax ? `до ${Number(priceMax).toLocaleString("ru-RU")} ₽` : "",
-    depositMax ? `залог до ${Number(depositMax).toLocaleString("ru-RU")} ₽` : "",
-    onlyWithPhoto ? "только с фото" : "",
-    sortMode === "price_asc" ? "сначала дешевле" : "",
-    sortMode === "price_desc" ? "сначала дороже" : "",
-  ].filter(Boolean);
+    search.trim()
+      ? { key: "search", label: `Поиск: ${search.trim()}`, onRemove: () => setSearch("") }
+      : null,
+    category
+      ? { key: "category", label: category, onRemove: () => setCategory("") }
+      : null,
+    city ? { key: "city", label: city, onRemove: () => setCity("") } : null,
+    nearMe
+      ? { key: "near", label: `Рядом со мной до ${NEARBY_RADIUS_KM} км`, onRemove: clearNearMe }
+      : null,
+    priceMin
+      ? {
+          key: "priceMin",
+          label: `от ${Number(priceMin).toLocaleString("ru-RU")} ₽`,
+          onRemove: () => setPriceMin(""),
+        }
+      : null,
+    priceMax
+      ? {
+          key: "priceMax",
+          label: `до ${Number(priceMax).toLocaleString("ru-RU")} ₽`,
+          onRemove: () => setPriceMax(""),
+        }
+      : null,
+    depositMax
+      ? {
+          key: "depositMax",
+          label: `залог до ${Number(depositMax).toLocaleString("ru-RU")} ₽`,
+          onRemove: () => setDepositMax(""),
+        }
+      : null,
+    onlyWithPhoto
+      ? { key: "photo", label: "только с фото", onRemove: () => setOnlyWithPhoto(false) }
+      : null,
+    sortMode === "price_asc"
+      ? { key: "priceAsc", label: "сначала дешевле", onRemove: () => setSortMode("new") }
+      : null,
+    sortMode === "price_desc"
+      ? { key: "priceDesc", label: "сначала дороже", onRemove: () => setSortMode("new") }
+      : null,
+  ].filter(Boolean) as Array<{
+    key: string;
+    label: string;
+    onRemove: () => void;
+  }>;
   const visibleItems = filteredItems.slice(0, visibleCount);
   const hasMoreItems = filteredItems.length > visibleItems.length;
 
@@ -456,6 +574,20 @@ export default function CatalogPage() {
 
             <button
               type="button"
+              onClick={requestNearbyItems}
+              disabled={nearLoading}
+              className={`flex h-14 items-center justify-center gap-2 rounded-full border px-5 text-sm font-black shadow-sm transition disabled:cursor-wait disabled:opacity-70 ${
+                nearMe
+                  ? "border-[#7BC47F] bg-[#7BC47F] text-white"
+                  : "border-black/10 bg-white text-[#111111] hover:border-[#7BC47F]"
+              }`}
+            >
+              <span>⌖</span>
+              <span>{nearLoading ? "Ищем..." : "Рядом"}</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setFiltersOpen(true)}
               className="flex h-14 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-5 text-sm font-black shadow-sm lg:hidden"
             >
@@ -477,6 +609,12 @@ export default function CatalogPage() {
               <option value="price_desc">Сначала дороже</option>
             </select>
           </div>
+
+          {nearError && (
+            <div className="mt-3 rounded-2xl bg-[#FFF4E8] px-4 py-3 text-sm font-bold text-[#9A5A00]">
+              {nearError}
+            </div>
+          )}
 
           <div className="mt-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
             <QuickFilter active={!category} onClick={() => setCategory("")}>
@@ -529,6 +667,9 @@ export default function CatalogPage() {
               category={category}
               city={city}
               depositMax={depositMax}
+              nearError={nearError}
+              nearLoading={nearLoading}
+              nearMe={nearMe}
               onlyWithPhoto={onlyWithPhoto}
               priceMax={priceMax}
               priceMin={priceMin}
@@ -538,8 +679,9 @@ export default function CatalogPage() {
               categoryCounts={categoryCounts}
               cityCounts={cityCounts}
               onCategoryChange={setCategory}
-              onCityChange={setCity}
+              onCityChange={changeCityFilter}
               onDepositMaxChange={setDepositMax}
+              onNearMeClick={requestNearbyItems}
               onOnlyWithPhotoChange={setOnlyWithPhoto}
               onPriceMaxChange={setPriceMax}
               onPriceMinChange={setPriceMin}
@@ -569,13 +711,15 @@ export default function CatalogPage() {
 
             {activeFilterLabels.length > 0 && (
               <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-                {activeFilterLabels.map((label) => (
-                  <span
-                    key={label}
-                    className="shrink-0 rounded-full bg-white px-3 py-2 text-xs font-black text-[#5F5F5F] shadow-sm"
+                {activeFilterLabels.map((filter) => (
+                  <button
+                    key={filter.key}
+                    type="button"
+                    onClick={filter.onRemove}
+                    className="shrink-0 rounded-full bg-white px-3 py-2 text-xs font-black text-[#5F5F5F] shadow-sm transition hover:text-[#111111]"
                   >
-                    {label}
-                  </span>
+                    {filter.label} <span className="ml-1 text-[#9A9A9A]">×</span>
+                  </button>
                 ))}
               </div>
             )}
@@ -661,6 +805,9 @@ export default function CatalogPage() {
               category={category}
               city={city}
               depositMax={depositMax}
+              nearError={nearError}
+              nearLoading={nearLoading}
+              nearMe={nearMe}
               onlyWithPhoto={onlyWithPhoto}
               priceMax={priceMax}
               priceMin={priceMin}
@@ -670,8 +817,9 @@ export default function CatalogPage() {
               categoryCounts={categoryCounts}
               cityCounts={cityCounts}
               onCategoryChange={setCategory}
-              onCityChange={setCity}
+              onCityChange={changeCityFilter}
               onDepositMaxChange={setDepositMax}
+              onNearMeClick={requestNearbyItems}
               onOnlyWithPhotoChange={setOnlyWithPhoto}
               onPriceMaxChange={setPriceMax}
               onPriceMinChange={setPriceMin}
@@ -701,6 +849,9 @@ function FiltersPanel({
   city,
   cityCounts,
   depositMax,
+  nearError,
+  nearLoading,
+  nearMe,
   onlyWithPhoto,
   priceMax,
   priceMin,
@@ -708,6 +859,7 @@ function FiltersPanel({
   onCategoryChange,
   onCityChange,
   onDepositMaxChange,
+  onNearMeClick,
   onOnlyWithPhotoChange,
   onPriceMaxChange,
   onPriceMinChange,
@@ -721,6 +873,9 @@ function FiltersPanel({
   city: string;
   cityCounts: Map<string, number>;
   depositMax: string;
+  nearError: string;
+  nearLoading: boolean;
+  nearMe: boolean;
   onlyWithPhoto: boolean;
   priceMax: string;
   priceMin: string;
@@ -728,6 +883,7 @@ function FiltersPanel({
   onCategoryChange: (value: string) => void;
   onCityChange: (value: string) => void;
   onDepositMaxChange: (value: string) => void;
+  onNearMeClick: () => void;
   onOnlyWithPhotoChange: (value: boolean) => void;
   onPriceMaxChange: (value: string) => void;
   onPriceMinChange: (value: string) => void;
@@ -766,6 +922,24 @@ function FiltersPanel({
       </FilterBlock>
 
       <FilterBlock title="Город">
+        <button
+          type="button"
+          onClick={onNearMeClick}
+          disabled={nearLoading}
+          className={`mb-3 flex h-12 w-full items-center justify-center gap-2 rounded-2xl border text-sm font-black transition disabled:cursor-wait disabled:opacity-70 ${
+            nearMe
+              ? "border-[#7BC47F] bg-[#7BC47F] text-white"
+              : "border-black/10 bg-white text-[#111111] hover:border-[#7BC47F]"
+          }`}
+        >
+          <span>⌖</span>
+          <span>{nearLoading ? "Ищем рядом..." : "Показать рядом со мной"}</span>
+        </button>
+        {nearError && (
+          <p className="mb-3 rounded-2xl bg-[#FFF4E8] px-3 py-2 text-xs font-bold leading-relaxed text-[#9A5A00]">
+            {nearError}
+          </p>
+        )}
         <select
           value={city}
           onChange={(event) => onCityChange(event.target.value)}
@@ -1064,4 +1238,54 @@ function countBy<T>(items: T[], getKey: (item: T) => string) {
   });
 
   return counts;
+}
+
+function parseCoordinates(
+  latitude?: string | null,
+  longitude?: string | null
+): Coordinates | null {
+  const parsedLatitude = Number(latitude);
+  const parsedLongitude = Number(longitude);
+
+  if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude)) {
+    return null;
+  }
+
+  return {
+    latitude: parsedLatitude,
+    longitude: parsedLongitude,
+  };
+}
+
+function getItemCoordinates(item: Item): Coordinates | null {
+  const latitude = Number(item.latitude);
+  const longitude = Number(item.longitude);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return { latitude, longitude };
+}
+
+function getDistanceKm(first: Coordinates, second: Coordinates) {
+  const earthRadiusKm = 6371;
+  const latitudeDelta = toRadians(second.latitude - first.latitude);
+  const longitudeDelta = toRadians(second.longitude - first.longitude);
+  const firstLatitude = toRadians(first.latitude);
+  const secondLatitude = toRadians(second.latitude);
+
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(firstLatitude) *
+      Math.cos(secondLatitude) *
+      Math.sin(longitudeDelta / 2) ** 2;
+
+  return (
+    2 * earthRadiusKm * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+  );
+}
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
 }
