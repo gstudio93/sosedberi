@@ -11,6 +11,7 @@ import { ru } from "date-fns/locale";
 registerLocale("ru", ru);
 
 import { supabase } from "../../../lib/supabase";
+import { getItemIdFromParam, getItemUrl } from "@/lib/item-url";
 
 function toBookingDate(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
@@ -18,7 +19,7 @@ function toBookingDate(date: Date) {
 
 export default function ItemPage() {
   const params = useParams();
-  const id = params.id as string;
+  const id = getItemIdFromParam(params.id as string);
 
   const [item, setItem] = useState<any>(null);
   const [ownerProfile, setOwnerProfile] = useState<any>(null);
@@ -816,7 +817,7 @@ function ItemRail({ items }: { items: any[] }) {
       {items.map((related) => (
         <a
           key={related.id}
-          href={`/item/${related.id}`}
+          href={getItemUrl(related)}
           className="group min-w-[250px] overflow-hidden rounded-[24px] border border-black/5 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
         >
           <div className="relative h-44 overflow-hidden bg-[#EFEFEB]">

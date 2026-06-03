@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { YMaps, Map as YandexMap } from "@pbe/react-yandex-maps";
 import { CATEGORIES } from "@/lib/categories";
+import { getItemUrl } from "@/lib/item-url";
 import { supabase } from "../lib/supabase";
 
 type Item = {
@@ -611,7 +612,7 @@ export default function HomePage() {
 
         <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:gap-x-8 sm:gap-y-10 xl:grid-cols-3">
           {items.slice(0, 6).map((item) => (
-            <a key={item.id} href={`/item/${item.id}`} className="group block">
+            <a key={item.id} href={getItemUrl(item)} className="group block">
               <div className="relative overflow-hidden rounded-[18px] bg-white shadow-sm transition duration-300 group-hover:-translate-y-1 group-hover:shadow-xl sm:rounded-[22px]">
                 <div className="relative h-[150px] overflow-hidden bg-[#EFEFEB] sm:h-[235px]">
                   {item.image ? (
@@ -712,7 +713,7 @@ export default function HomePage() {
                   </b>{" "}
                   о вещи{" "}
                   <a
-                    href={`/item/${review.items?.id}`}
+                    href={getItemUrl(review.items || undefined)}
                     className="font-bold text-[#29933D]"
                   >
                     {review.items?.name}

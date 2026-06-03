@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getItemUrl } from "@/lib/item-url";
 
 type Item = {
   id: string;
@@ -837,7 +838,7 @@ function CatalogCard({
 
   return (
     <article className="group overflow-hidden rounded-[20px] border border-black/5 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg sm:rounded-[24px]">
-      <Link href={`/item/${item.id}`} className="block">
+      <Link href={getItemUrl(item)} className="block">
         <div className="relative aspect-[1.16/1] overflow-hidden bg-[#EFEFEB] sm:aspect-[4/3]">
           <img
             src={item.image || "/hero.jpg"}

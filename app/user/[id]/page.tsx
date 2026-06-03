@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { getItemUrl } from "@/lib/item-url";
 import { supabase } from "../../../lib/supabase";
 
 type Tab = "items" | "reviews" | "details";
@@ -275,7 +276,7 @@ export default function UserPage() {
                 {items.map((item) => (
                   <Link
                     key={item.id}
-                    href={`/item/${item.id}`}
+                    href={getItemUrl(item)}
                     className="group overflow-hidden rounded-[22px] border border-black/5 bg-[#F7F7F5] transition hover:-translate-y-0.5 hover:shadow-md"
                   >
                     <div className="aspect-[4/3] overflow-hidden bg-white">

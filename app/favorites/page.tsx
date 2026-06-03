@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { getItemUrl } from "@/lib/item-url";
 import { supabase } from "../../lib/supabase";
 
 type Favorite = {
@@ -147,7 +148,7 @@ export default function FavoritesPage() {
                     key={favorite.id}
                     className="group overflow-hidden rounded-[22px] border border-black/5 bg-[#F7F7F5] transition hover:-translate-y-0.5 hover:shadow-md"
                   >
-                    <Link href={`/item/${item.id}`} className="block">
+                    <Link href={getItemUrl(item)} className="block">
                       <div className="relative aspect-[4/3] overflow-hidden bg-white">
                         <img
                           src={item.image || "/hero.jpg"}

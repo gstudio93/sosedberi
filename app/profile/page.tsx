@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { getItemUrl } from "@/lib/item-url";
 import { supabase } from "../../lib/supabase";
 
 type Tab = "overview" | "items" | "bookings" | "messages" | "favorites" | "wallet" | "reviews" | "settings";
@@ -654,7 +655,7 @@ export default function ProfilePage() {
       reviewType === "item"
         ? `Оставлен отзыв о вещи: ${booking.items?.name || "объявление"}.`
         : "Владелец оценил вас как арендатора.",
-      reviewType === "item" ? `/item/${booking.item_id}` : "/profile"
+      reviewType === "item" ? getItemUrl(booking.items || { id: booking.item_id }) : "/profile"
     );
   }
 
@@ -1930,7 +1931,7 @@ function MiniItemCard({ item }: { item: any }) {
 
   return (
     <Link
-      href={`/item/${item.id}`}
+      href={getItemUrl(item)}
       className="grid min-h-[150px] grid-cols-[120px_1fr] overflow-hidden rounded-[20px] border border-black/5 bg-white transition hover:shadow-md"
     >
       <img
@@ -2004,7 +2005,7 @@ function OwnerItemCard({
 
         <div className="mt-5 flex flex-wrap gap-2">
           <Link
-            href={`/item/${item.id}`}
+            href={getItemUrl(item)}
             className="min-w-[120px] flex-1 rounded-full bg-white px-4 py-3 text-center text-sm font-bold"
           >
             Открыть

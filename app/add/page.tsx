@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORIES } from "@/lib/categories";
+import { getItemUrl } from "@/lib/item-url";
 import { supabase } from "@/lib/supabase";
 
 type Suggestion = {
@@ -364,7 +365,7 @@ function AddItemContent() {
       return;
     }
 
-    router.push(savedItem?.id ? `/item/${savedItem.id}` : "/profile");
+    router.push(savedItem?.id ? getItemUrl(savedItem) : "/profile");
   }
 
   if (loadingItem) {

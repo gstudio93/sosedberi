@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { getItemUrl } from "@/lib/item-url";
 import { supabase } from "../../lib/supabase";
 
 const COMMISSION_RATE = 0.1;
@@ -542,7 +543,7 @@ export default function AdminPage() {
                     <div className="font-extrabold">{formatMoney(Number(item.price || 0))}</div>
                     <div className="flex flex-wrap gap-2">
                       <Link
-                        href={`/item/${item.id}`}
+                        href={getItemUrl(item)}
                         className="rounded-full bg-white px-4 py-2 text-xs font-bold"
                       >
                         Открыть
@@ -857,7 +858,7 @@ function DisputeRow({
 
         <div className="flex flex-col gap-2">
           <Link
-            href={item?.id ? `/item/${item.id}` : "/admin"}
+            href={item?.id ? getItemUrl(item) : "/admin"}
             className="rounded-full bg-white px-4 py-2.5 text-center text-sm font-bold"
           >
             Открыть объявление
