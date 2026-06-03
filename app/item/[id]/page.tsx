@@ -28,6 +28,7 @@ export default function ItemPage() {
   
   const [isFavorite, setIsFavorite] = useState(false);
   const [relatedItems, setRelatedItems] = useState<any[]>([]);
+  const [ownerItems, setOwnerItems] = useState<any[]>([]);
 
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -46,6 +47,7 @@ export default function ItemPage() {
   useEffect(() => {
   if (item?.owner_id) {
     loadOwnerProfile();
+    loadOwnerItems();
   }
 
   if (item?.category) {
@@ -59,9 +61,25 @@ async function loadRelatedItems() {
     .select("*")
     .eq("category", item.category)
     .neq("id", item.id)
+    .eq("status", "active")
+    .neq("moderation_status", "rejected")
     .limit(4);
 
   setRelatedItems(data || []);
+}
+
+async function loadOwnerItems() {
+  const { data } = await supabase
+    .from("items")
+    .select("*")
+    .eq("owner_id", item.owner_id)
+    .neq("id", item.id)
+    .eq("status", "active")
+    .neq("moderation_status", "rejected")
+    .order("created_at", { ascending: false })
+    .limit(4);
+
+  setOwnerItems(data || []);
 }
 
   async function loadItem() {
@@ -436,7 +454,18 @@ const mapSrc = hasCoordinates
 
             <div className="mt-6 space-y-4">
               {reviews.length === 0 ? (
-                <div className="text-[#6B6B6B]">Пока нет отзывов</div>
+                <div className="rounded-[24px] bg-[#F7F7F5] p-6 text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white text-xl">
+                    ★
+                  </div>
+                  <div className="mt-3 text-base font-black">
+                    Пока нет отзывов о вещи
+                  </div>
+                  <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[#6B6B6B]">
+                    Первый отзыв появится после завершенной аренды и возврата
+                    товара.
+                  </p>
+                </div>
               ) : (
                 reviews.map((review) => {
                   const authorName =
@@ -657,47 +686,60 @@ calendarStartDay={1}
           </div>
         </div>
       </div>
-      {/* RELATED ITEMS */}
-{relatedItems.length > 0 && (
-  <section className="mx-auto mt-20 max-w-7xl">
-    <h2 className="mb-8 text-2xl font-black">
-      Похожие вещи
-    </h2>
 
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-      {relatedItems.map((related) => (
-        <a
-          key={related.id}
-          href={`/item/${related.id}`}
-          className="group block"
-        >
-          <div className="relative min-w-[260px] overflow-hidden rounded-[28px] bg-white shadow-sm transition hover:-translate-y-1">
-            <img
-              src={related.image}
-              alt={related.name}
-              className="h-[225px] w-full object-cover transition duration-500 group-hover:scale-105"
-            />
-            <div className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-xl shadow-sm">
-  ♡
-</div>
-
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-
-            <div className="absolute bottom-4 left-4 text-white">
-              <div className="text-lg font-black">
-                {related.name}
-              </div>
-
-              <div className="mt-1 text-sm text-white/80">
-                {related.price} ₽ / день
-              </div>
-            </div>
+      <section className="mx-auto mt-12 max-w-7xl lg:mt-16">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold uppercase text-[#7BC47F]">
+              Владелец
+            </p>
+            <h2 className="mt-1 text-2xl font-black lg:text-3xl">
+              Другие вещи владельца
+            </h2>
           </div>
-        </a>
-      ))}
-    </div>
-  </section>
-)}
+
+          <a
+            href={`/user/${item.owner_id}`}
+            className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-black transition hover:border-[#7BC47F]"
+          >
+            Смотреть профиль
+          </a>
+        </div>
+
+        {ownerItems.length > 0 ? (
+          <ItemRail items={ownerItems} />
+        ) : (
+          <EmptyItemBlock text="У этого владельца пока нет других активных объявлений." />
+        )}
+      </section>
+
+      <section className="mx-auto mt-12 max-w-7xl lg:mt-16">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold uppercase text-[#7BC47F]">
+              {item.category || "Категория"}
+            </p>
+            <h2 className="mt-1 text-2xl font-black lg:text-3xl">
+              Похожие вещи
+            </h2>
+          </div>
+
+          {item.category && (
+            <a
+              href={`/catalog?category=${encodeURIComponent(item.category)}`}
+              className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-black transition hover:border-[#7BC47F]"
+            >
+              В каталог
+            </a>
+          )}
+        </div>
+
+        {relatedItems.length > 0 ? (
+          <ItemRail items={relatedItems} />
+        ) : (
+          <EmptyItemBlock text="Похожих объявлений пока нет. Каталог быстро растет, скоро здесь появятся варианты." />
+        )}
+      </section>
       {galleryOpen && (
   <div className="fixed inset-0 z-[200] bg-black/95 px-6 py-8 text-white">
     <button
@@ -764,41 +806,79 @@ calendarStartDay={1}
     </button>
   </div>
 </div>
-{/* RELATED ITEMS */}
-<section className="mt-16 lg:mt-24">
-  <h2 className="text-2xl font-black lg:text-3xl">
-    Похожие вещи
-  </h2>
-
-  <div className="mt-6 flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-3 lg:overflow-visible">
-    {relatedItems.map((related) => (
-      <a
-        key={related.id}
-        href={`/item/${related.id}`}
-        className="min-w-[260px] overflow-hidden rounded-[28px] bg-white shadow-sm transition hover:-translate-y-1"
-      >
-        <img
-          src={related.image}
-          className="h-48 w-full object-cover"
-        />
-
-        <div className="p-4">
-          <h3 className="line-clamp-1 text-lg font-black">
-            {related.name}
-          </h3>
-
-          <p className="mt-1 text-sm text-[#6B6B6B]">
-            📍 {related.location}
-          </p>
-
-          <div className="mt-4 text-2xl font-black">
-            {related.price} ₽
-          </div>
-        </div>
-      </a>
-    ))}
-  </div>
-</section>
     </main>
+  );
+}
+
+function ItemRail({ items }: { items: any[] }) {
+  return (
+    <div className="flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-4 lg:overflow-visible">
+      {items.map((related) => (
+        <a
+          key={related.id}
+          href={`/item/${related.id}`}
+          className="group min-w-[250px] overflow-hidden rounded-[24px] border border-black/5 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+        >
+          <div className="relative h-44 overflow-hidden bg-[#EFEFEB]">
+            <img
+              src={related.image || "/hero.jpg"}
+              alt={related.name}
+              className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            />
+            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/45 to-transparent" />
+            {related.category && (
+              <div className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-black text-[#3F9E47] shadow-sm">
+                {related.category}
+              </div>
+            )}
+          </div>
+
+          <div className="p-4">
+            <h3 className="line-clamp-2 min-h-[44px] text-base font-black leading-tight">
+              {related.name}
+            </h3>
+
+            <p className="mt-2 line-clamp-1 text-sm text-[#6B6B6B]">
+              📍 {related.location || "Город не указан"}
+            </p>
+
+            <div className="mt-4 flex items-end justify-between gap-3">
+              <div>
+                <div className="text-xl font-black">
+                  {Number(related.price || 0).toLocaleString("ru-RU")} ₽
+                </div>
+                <div className="text-xs font-bold uppercase text-[#8D8D8D]">
+                  в день
+                </div>
+              </div>
+
+              {Number(related.deposit || 0) > 0 && (
+                <div className="rounded-2xl bg-[#F7F7F5] px-3 py-2 text-right">
+                  <div className="text-[10px] font-bold uppercase text-[#8D8D8D]">
+                    Залог
+                  </div>
+                  <div className="text-sm font-black">
+                    {Number(related.deposit).toLocaleString("ru-RU")} ₽
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function EmptyItemBlock({ text }: { text: string }) {
+  return (
+    <div className="rounded-[28px] border border-black/5 bg-white p-8 text-center shadow-sm">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F7F7F5] text-2xl">
+        ⌕
+      </div>
+      <div className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-[#6B6B6B]">
+        {text}
+      </div>
+    </div>
   );
 }
