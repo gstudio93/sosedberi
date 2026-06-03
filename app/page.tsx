@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { YMaps, Map as YandexMap } from "@pbe/react-yandex-maps";
 import { CATEGORIES } from "@/lib/categories";
 import { supabase } from "../lib/supabase";
@@ -95,6 +96,7 @@ const benefitCards = [
 ];
 
 export default function HomePage() {
+  const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
   const [latestReviews, setLatestReviews] = useState<Review[]>([]);
   const [search, setSearch] = useState("");
@@ -352,7 +354,14 @@ export default function HomePage() {
 
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    loadItems(city, search, category);
+
+    const params = new URLSearchParams();
+
+    if (search.trim()) params.set("q", search.trim());
+    if (city.trim()) params.set("city", city.trim());
+    if (category) params.set("category", category);
+
+    router.push(`/catalog${params.toString() ? `?${params.toString()}` : ""}`);
   }
 
   function toDateInputValue(date: Date) {
@@ -573,7 +582,7 @@ export default function HomePage() {
             </div>
 
             <button
-              onClick={() => setCategory("")}
+              onClick={() => router.push("/catalog")}
               className="mt-10 rounded-full bg-[#7BC47F] px-7 py-4 text-sm font-black transition hover:bg-[#69B56E]"
             >
               Открыть все категории

@@ -83,11 +83,53 @@ export default function CatalogPage() {
   const [depositMax, setDepositMax] = useState("");
   const [onlyWithPhoto, setOnlyWithPhoto] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("new");
+  const [initialFiltersLoaded, setInitialFiltersLoaded] = useState(false);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    setSearch(params.get("q") || "");
+    setCategory(params.get("category") || "");
+    setCity(params.get("city") || "");
+    setPriceMin(params.get("priceMin") || "");
+    setPriceMax(params.get("priceMax") || "");
+    setDepositMax(params.get("depositMax") || "");
+    setOnlyWithPhoto(params.get("photo") === "1");
+    setSortMode((params.get("sort") as SortMode) || "new");
+    setInitialFiltersLoaded(true);
     loadItems();
     loadFavorites();
   }, []);
+
+  useEffect(() => {
+    if (!initialFiltersLoaded) return;
+
+    const params = new URLSearchParams();
+
+    if (search.trim()) params.set("q", search.trim());
+    if (category) params.set("category", category);
+    if (city) params.set("city", city);
+    if (priceMin) params.set("priceMin", priceMin);
+    if (priceMax) params.set("priceMax", priceMax);
+    if (depositMax) params.set("depositMax", depositMax);
+    if (onlyWithPhoto) params.set("photo", "1");
+    if (sortMode !== "new") params.set("sort", sortMode);
+
+    const queryString = params.toString();
+    const nextUrl = queryString ? `/catalog?${queryString}` : "/catalog";
+
+    window.history.replaceState({}, "", nextUrl);
+  }, [
+    category,
+    city,
+    depositMax,
+    initialFiltersLoaded,
+    onlyWithPhoto,
+    priceMax,
+    priceMin,
+    search,
+    sortMode,
+  ]);
 
   async function loadItems() {
     setLoading(true);
@@ -260,6 +302,33 @@ export default function CatalogPage() {
     sortMode,
   ]);
 
+  const categoryCounts = useMemo(
+    () => countBy(items, (item) => item.category || ""),
+    [items]
+  );
+  const cityCounts = useMemo(
+    () => countBy(items, (item) => item.location || item.city || ""),
+    [items]
+  );
+  const availableCategories = useMemo(
+    () =>
+      CATALOG_CATEGORIES.filter((item) => categoryCounts.get(item)).concat(
+        Array.from(categoryCounts.keys()).filter(
+          (item) => item && !CATALOG_CATEGORIES.includes(item)
+        )
+      ),
+    [categoryCounts]
+  );
+  const availableCities = useMemo(
+    () =>
+      CATALOG_CITIES.filter((item) => cityCounts.get(item)).concat(
+        Array.from(cityCounts.keys()).filter(
+          (item) => item && !CATALOG_CITIES.includes(item)
+        )
+      ),
+    [cityCounts]
+  );
+
   const activeFiltersCount = [
     search,
     category,
@@ -270,6 +339,18 @@ export default function CatalogPage() {
     onlyWithPhoto ? "photo" : "",
     sortMode !== "new" ? sortMode : "",
   ].filter(Boolean).length;
+
+  const activeFilterLabels = [
+    search.trim() ? `Поиск: ${search.trim()}` : "",
+    category,
+    city,
+    priceMin ? `от ${Number(priceMin).toLocaleString("ru-RU")} ₽` : "",
+    priceMax ? `до ${Number(priceMax).toLocaleString("ru-RU")} ₽` : "",
+    depositMax ? `залог до ${Number(depositMax).toLocaleString("ru-RU")} ₽` : "",
+    onlyWithPhoto ? "только с фото" : "",
+    sortMode === "price_asc" ? "сначала дешевле" : "",
+    sortMode === "price_desc" ? "сначала дороже" : "",
+  ].filter(Boolean);
 
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-4 pb-24 pt-28 text-[#111111] sm:px-6 lg:pt-32">
@@ -307,6 +388,16 @@ export default function CatalogPage() {
                 placeholder="Что ищем? Например: палатка, перфоратор, кресло"
                 className="h-14 w-full rounded-full border border-black/10 bg-[#F7F7F5] pl-12 pr-5 text-sm font-semibold outline-none transition focus:border-[#7BC47F] focus:bg-white"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-4 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white text-lg font-black text-[#8D8D8D] transition hover:text-[#111111]"
+                  aria-label="Очистить поиск"
+                >
+                  ×
+                </button>
+              )}
             </div>
 
             <button
@@ -332,6 +423,21 @@ export default function CatalogPage() {
               <option value="price_desc">Сначала дороже</option>
             </select>
           </div>
+
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+            <QuickFilter active={!category} onClick={() => setCategory("")}>
+              Все
+            </QuickFilter>
+            {availableCategories.slice(0, 8).map((item) => (
+              <QuickFilter
+                key={item}
+                active={category === item}
+                onClick={() => setCategory(item)}
+              >
+                {item}
+              </QuickFilter>
+            ))}
+          </div>
         </section>
 
         <div className="grid gap-6 lg:grid-cols-[310px_minmax(0,1fr)]">
@@ -344,6 +450,10 @@ export default function CatalogPage() {
               priceMax={priceMax}
               priceMin={priceMin}
               sortMode={sortMode}
+              availableCategories={availableCategories}
+              availableCities={availableCities}
+              categoryCounts={categoryCounts}
+              cityCounts={cityCounts}
               onCategoryChange={setCategory}
               onCityChange={setCity}
               onDepositMaxChange={setDepositMax}
@@ -373,6 +483,19 @@ export default function CatalogPage() {
                 </button>
               )}
             </div>
+
+            {activeFilterLabels.length > 0 && (
+              <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+                {activeFilterLabels.map((label) => (
+                  <span
+                    key={label}
+                    className="shrink-0 rounded-full bg-white px-3 py-2 text-xs font-black text-[#5F5F5F] shadow-sm"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {loading ? (
               <div className="grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -442,6 +565,10 @@ export default function CatalogPage() {
               priceMax={priceMax}
               priceMin={priceMin}
               sortMode={sortMode}
+              availableCategories={availableCategories}
+              availableCities={availableCities}
+              categoryCounts={categoryCounts}
+              cityCounts={cityCounts}
               onCategoryChange={setCategory}
               onCityChange={setCity}
               onDepositMaxChange={setDepositMax}
@@ -467,8 +594,12 @@ export default function CatalogPage() {
 }
 
 function FiltersPanel({
+  availableCategories,
+  availableCities,
   category,
+  categoryCounts,
   city,
+  cityCounts,
   depositMax,
   onlyWithPhoto,
   priceMax,
@@ -483,8 +614,12 @@ function FiltersPanel({
   onReset,
   onSortModeChange,
 }: {
+  availableCategories: string[];
+  availableCities: string[];
   category: string;
+  categoryCounts: Map<string, number>;
   city: string;
+  cityCounts: Map<string, number>;
   depositMax: string;
   onlyWithPhoto: boolean;
   priceMax: string;
@@ -517,11 +652,12 @@ function FiltersPanel({
           <Chip active={!category} onClick={() => onCategoryChange("")}>
             Все
           </Chip>
-          {CATALOG_CATEGORIES.map((item) => (
+          {availableCategories.map((item) => (
             <Chip
               key={item}
               active={category === item}
               onClick={() => onCategoryChange(item)}
+              count={categoryCounts.get(item) || 0}
             >
               {item}
             </Chip>
@@ -536,9 +672,9 @@ function FiltersPanel({
           className="h-12 w-full rounded-2xl border border-black/10 bg-[#F7F7F5] px-4 text-sm font-bold outline-none focus:border-[#7BC47F]"
         >
           <option value="">Все города</option>
-          {CATALOG_CITIES.map((item) => (
+          {availableCities.map((item) => (
             <option key={item} value={item}>
-              {item}
+              {item} {cityCounts.get(item) ? `(${cityCounts.get(item)})` : ""}
             </option>
           ))}
         </select>
@@ -693,6 +829,37 @@ function CatalogCard({
 function Chip({
   active,
   children,
+  count,
+  onClick,
+}: {
+  active: boolean;
+  children: ReactNode;
+  count?: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-black transition ${
+        active
+          ? "border-[#7BC47F] bg-[#7BC47F] text-white"
+          : "border-black/10 bg-white text-[#5F5F5F] hover:border-[#7BC47F] hover:text-[#111111]"
+      }`}
+    >
+      {children}
+      {typeof count === "number" && count > 0 && (
+        <span className={active ? "text-white/80" : "text-[#9A9A9A]"}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function QuickFilter({
+  active,
+  children,
   onClick,
 }: {
   active: boolean;
@@ -703,10 +870,10 @@ function Chip({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full border px-3.5 py-2 text-xs font-black transition ${
+      className={`shrink-0 rounded-full px-4 py-2.5 text-xs font-black transition ${
         active
-          ? "border-[#7BC47F] bg-[#7BC47F] text-white"
-          : "border-black/10 bg-white text-[#5F5F5F] hover:border-[#7BC47F] hover:text-[#111111]"
+          ? "bg-[#111111] text-white"
+          : "bg-[#F7F7F5] text-[#5F5F5F] hover:text-[#111111]"
       }`}
     >
       {children}
@@ -784,4 +951,17 @@ function pluralize(count: number, one: string, few: string, many: string) {
   if (mod10 === 1 && mod100 !== 11) return one;
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
   return many;
+}
+
+function countBy<T>(items: T[], getKey: (item: T) => string) {
+  const counts = new Map<string, number>();
+
+  items.forEach((item) => {
+    const key = getKey(item).trim();
+    if (!key) return;
+
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+
+  return counts;
 }
