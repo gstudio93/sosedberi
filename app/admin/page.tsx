@@ -8,11 +8,13 @@ import { supabase } from "../../lib/supabase";
 const COMMISSION_RATE = 0.1;
 
 type AdminTab = "finance" | "bookings" | "users" | "moderation" | "disputes";
+type FinanceFilter = "all" | "paid" | "active" | "completed" | "disputes" | "payouts";
 
 export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState<AdminTab>("finance");
+  const [financeFilter, setFinanceFilter] = useState<FinanceFilter>("all");
   const [adminUserId, setAdminUserId] = useState("");
   const [users, setUsers] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
@@ -350,9 +352,46 @@ export default function AdminPage() {
       paidVolume,
       commission: paidVolume * COMMISSION_RATE,
       deposits,
+      payouts: paidBookings.reduce((sum, booking) => sum + getOwnerPayout(booking), 0),
+      withheldDeposits: closedDisputes.reduce(
+        (sum, report) => sum + Number(report.deposit_withheld_amount || 0),
+        0
+      ),
+      refundableDeposits: closedDisputes.reduce(
+        (sum, report) => sum + Number(report.deposit_refund_amount || 0),
+        0
+      ),
       averageOrder: paidBookings.length ? paidVolume / paidBookings.length : 0,
     };
-  }, [paidBookings]);
+  }, [closedDisputes, paidBookings]);
+
+  const filteredFinanceBookings = useMemo(() => {
+    if (financeFilter === "paid") {
+      return bookings.filter((booking) => booking.payment_status === "paid");
+    }
+
+    if (financeFilter === "active") {
+      return bookings.filter((booking) =>
+        ["pending", "approved", "handover_pending", "active", "return_pending"].includes(booking.status)
+      );
+    }
+
+    if (financeFilter === "completed") {
+      return bookings.filter((booking) => booking.status === "completed");
+    }
+
+    if (financeFilter === "disputes") {
+      return bookings.filter((booking) => booking.status === "dispute");
+    }
+
+    if (financeFilter === "payouts") {
+      return bookings.filter(
+        (booking) => booking.payment_status === "paid" && ["active", "return_pending", "completed"].includes(booking.status)
+      );
+    }
+
+    return bookings;
+  }, [bookings, financeFilter]);
 
   if (loading) {
     return (
@@ -415,14 +454,21 @@ export default function AdminPage() {
           <StatCard label="Оборот оплаченных броней" value={formatMoney(finance.paidVolume)} />
           <StatCard label="Выручка комиссии" value={formatMoney(finance.commission)} tone="green" />
           <StatCard label="Залогов под контролем" value={formatMoney(finance.deposits)} />
-          <StatCard label="Активных броней" value={activeBookings.length} />
+          <StatCard label="Выплаты владельцам" value={formatMoney(finance.payouts)} />
+        </section>
+
+        <section className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MiniStat label="Активных броней" value={activeBookings.length} />
+          <MiniStat label="Удержано по спорам" value={formatMoney(finance.withheldDeposits)} />
+          <MiniStat label="Возвратов залога" value={formatMoney(finance.refundableDeposits)} />
+          <MiniStat label="Открытых споров" value={openDisputes.length} />
         </section>
 
         <section className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MiniStat label="Пользователей" value={users.length} />
           <MiniStat label="Ожидают проверки" value={pendingUsers.length} />
           <MiniStat label="Объявлений" value={items.length} />
-          <MiniStat label="Открытых споров" value={openDisputes.length} />
+          <MiniStat label="Оплаченных сделок" value={paidBookings.length} />
         </section>
 
         <nav className="mb-6 grid rounded-[22px] border border-black/5 bg-white p-1.5 shadow-sm md:grid-cols-5">
@@ -445,30 +491,43 @@ export default function AdminPage() {
 
         {activeTab === "finance" && (
           <Panel title="Финансы проекта" subtitle="Расчет по оплаченным броням. Сейчас комиссия считается модельно, по ставке сервиса.">
-            <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-              <div className="overflow-hidden rounded-[20px] border border-black/5">
-                <TableHeader cols="grid-cols-[1.4fr_1fr_1fr_1fr]">
-                  <span>Бронь</span>
-                  <span>Сумма</span>
-                  <span>Комиссия</span>
-                  <span>Статус</span>
-                </TableHeader>
+            <div className="mb-5 flex flex-wrap gap-2 rounded-[22px] bg-[#F7F7F5] p-2">
+              {[
+                { id: "all", label: "Все", count: bookings.length },
+                { id: "paid", label: "Оплаченные", count: paidBookings.length },
+                { id: "active", label: "Активные", count: activeBookings.length },
+                { id: "completed", label: "Завершенные", count: bookings.filter((booking) => booking.status === "completed").length },
+                { id: "disputes", label: "Споры", count: bookings.filter((booking) => booking.status === "dispute").length },
+                { id: "payouts", label: "Выплаты", count: paidBookings.filter((booking) => ["active", "return_pending", "completed"].includes(booking.status)).length },
+              ].map((filter) => (
+                <button
+                  key={filter.id}
+                  type="button"
+                  onClick={() => setFinanceFilter(filter.id as FinanceFilter)}
+                  className={`rounded-full px-4 py-2 text-sm font-extrabold transition ${
+                    financeFilter === filter.id
+                      ? "bg-[#111111] text-white"
+                      : "bg-white text-[#6B6B6B] hover:text-[#111111]"
+                  }`}
+                >
+                  {filter.label}
+                  <span className="ml-2 text-xs opacity-70">{filter.count}</span>
+                </button>
+              ))}
+            </div>
 
-                {paidBookings.length === 0 ? (
-                  <Empty text="Пока нет оплаченных броней." />
+            <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+              <div className="space-y-3">
+                {filteredFinanceBookings.length === 0 ? (
+                  <Empty text="По этому фильтру сделок нет." />
                 ) : (
-                  paidBookings.slice(0, 8).map((booking) => (
-                    <div
+                  filteredFinanceBookings.slice(0, 30).map((booking) => (
+                    <FinanceDealRow
                       key={booking.id}
-                      className="grid grid-cols-1 gap-2 border-t border-black/5 p-4 text-sm md:grid-cols-[1.4fr_1fr_1fr_1fr]"
-                    >
-                      <div className="font-bold">{booking.items?.name || "Бронь"}</div>
-                      <div>{formatMoney(getBookingAmount(booking))}</div>
-                      <div className="font-bold text-[#3F9E47]">
-                        {formatMoney(getBookingAmount(booking) * COMMISSION_RATE)}
-                      </div>
-                      <StatusBadge status={booking.status} />
-                    </div>
+                      booking={booking}
+                      renter={userById[booking.renter_id]}
+                      owner={userById[booking.items?.owner_id]}
+                    />
                   ))
                 )}
               </div>
@@ -477,7 +536,10 @@ export default function AdminPage() {
                 <h3 className="text-lg font-extrabold">Сводка</h3>
                 <SummaryRow label="Средний чек" value={formatMoney(finance.averageOrder)} />
                 <SummaryRow label="Комиссия к получению" value={formatMoney(finance.commission)} />
+                <SummaryRow label="Выплаты владельцам" value={formatMoney(finance.payouts)} />
                 <SummaryRow label="Залогов в бронях" value={formatMoney(finance.deposits)} />
+                <SummaryRow label="Залог вернуть по спорам" value={formatMoney(finance.refundableDeposits)} />
+                <SummaryRow label="Залог удержан по спорам" value={formatMoney(finance.withheldDeposits)} />
                 <SummaryRow label="Оплаченных сделок" value={paidBookings.length} />
               </div>
             </div>
@@ -630,6 +692,34 @@ function getBookingAmount(booking: any) {
   return days * Number(booking.items?.price || 0);
 }
 
+function getBookingDeposit(booking: any) {
+  return Number(booking.deposit_amount || booking.items?.deposit || 0);
+}
+
+function getBookingCommission(booking: any) {
+  return Math.round(getBookingAmount(booking) * COMMISSION_RATE);
+}
+
+function getOwnerPayout(booking: any) {
+  return Math.max(0, getBookingAmount(booking) - getBookingCommission(booking));
+}
+
+function getCustomerPaymentTotal(booking: any) {
+  return getBookingAmount(booking) + getBookingDeposit(booking) + getBookingCommission(booking);
+}
+
+function getFinanceStatusText(booking: any) {
+  if (booking.status === "dispute") return "Спор по залогу";
+  if (booking.status === "completed") return "Сделка завершена";
+  if (booking.payment_status !== "paid") return "Ожидает оплаты";
+  if (booking.status === "handover_pending") return "Оплачено, передача";
+  if (booking.status === "active") return "В аренде";
+  if (booking.status === "return_pending") return "Ожидает возврата";
+  if (booking.status === "cancelled") return "Отменена";
+  if (booking.status === "rejected") return "Отклонена";
+  return "В работе";
+}
+
 function formatMoney(value: number) {
   return `${Math.round(value).toLocaleString("ru-RU")} ₽`;
 }
@@ -757,7 +847,7 @@ function StatusBadge({ status }: { status: string }) {
 
 function BookingRow({ booking }: { booking: any }) {
   return (
-    <div className="grid gap-4 rounded-[20px] border border-black/5 bg-[#F7F7F5] p-4 md:grid-cols-[1fr_160px_160px_120px] md:items-center">
+    <div className="grid gap-4 rounded-[20px] border border-black/5 bg-[#F7F7F5] p-4 md:grid-cols-[1fr_160px_160px_160px_120px] md:items-center">
       <div className="flex items-center gap-3">
         <img
           src={booking.items?.image || "/hero.jpg"}
@@ -773,8 +863,86 @@ function BookingRow({ booking }: { booking: any }) {
         </div>
       </div>
       <div className="font-extrabold">{formatMoney(getBookingAmount(booking))}</div>
-      <div className="text-sm text-[#6B6B6B]">Оплата: {booking.payment_status}</div>
+      <div className="text-sm text-[#6B6B6B]">Залог: {formatMoney(getBookingDeposit(booking))}</div>
+      <div className="text-sm text-[#6B6B6B]">Оплата: {booking.payment_status === "paid" ? "оплачено" : "не оплачено"}</div>
       <StatusBadge status={booking.status} />
+    </div>
+  );
+}
+
+function FinanceDealRow({
+  booking,
+  renter,
+  owner,
+}: {
+  booking: any;
+  renter?: any;
+  owner?: any;
+}) {
+  const rentAmount = getBookingAmount(booking);
+  const depositAmount = getBookingDeposit(booking);
+  const commissionAmount = getBookingCommission(booking);
+  const payoutAmount = getOwnerPayout(booking);
+  const customerTotal = getCustomerPaymentTotal(booking);
+  const paymentIsPaid = booking.payment_status === "paid";
+
+  return (
+    <div className="rounded-[22px] border border-black/5 bg-[#F7F7F5] p-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:items-start">
+        <div className="flex min-w-0 gap-3">
+          <img
+            src={booking.items?.image || "/hero.jpg"}
+            alt=""
+            className="h-20 w-24 shrink-0 rounded-2xl object-cover"
+          />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="truncate text-base font-extrabold">{booking.items?.name || "Бронь"}</h3>
+              <StatusBadge status={booking.status} />
+            </div>
+            <div className="mt-2 text-xs text-[#8D8D8D]">
+              {booking.start_date ? new Date(booking.start_date).toLocaleDateString("ru-RU") : "дата не указана"} -{" "}
+              {booking.end_date ? new Date(booking.end_date).toLocaleDateString("ru-RU") : "дата не указана"}
+            </div>
+            <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+              <ParticipantLink label="Владелец" userId={booking.items?.owner_id} name={getProfileName(owner, "Владелец")} />
+              <ParticipantLink label="Арендатор" userId={booking.renter_id} name={getProfileName(renter, "Арендатор")} />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-2 text-sm sm:grid-cols-2">
+          <FinanceCell label="Аренда" value={formatMoney(rentAmount)} />
+          <FinanceCell label="Залог" value={formatMoney(depositAmount)} />
+          <FinanceCell label="Комиссия" value={formatMoney(commissionAmount)} tone="green" />
+          <FinanceCell label="Выплата владельцу" value={formatMoney(payoutAmount)} />
+          <FinanceCell label="Итого клиента" value={formatMoney(customerTotal)} />
+          <FinanceCell
+            label="Финансовый статус"
+            value={paymentIsPaid ? getFinanceStatusText(booking) : "Ожидает оплаты"}
+            tone={paymentIsPaid ? "green" : "default"}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FinanceCell({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "green";
+}) {
+  return (
+    <div className="rounded-2xl bg-white px-4 py-3">
+      <div className="text-xs font-bold uppercase text-[#8D8D8D]">{label}</div>
+      <div className={`mt-1 font-extrabold ${tone === "green" ? "text-[#3F9E47]" : ""}`}>
+        {value}
+      </div>
     </div>
   );
 }
