@@ -80,9 +80,22 @@ function AddItemContent() {
   const depositNumber = Number(deposit) || 0;
 
   const formReady = useMemo(
-    () => name.trim() && priceNumber > 0 && location.trim() && category,
-    [category, location, name, priceNumber]
+    () =>
+      name.trim() &&
+      priceNumber > 0 &&
+      location.trim() &&
+      category &&
+      images.length > 0,
+    [category, images.length, location, name, priceNumber]
   );
+
+  const completionItems = [
+    { label: "Фото", done: images.length > 0 },
+    { label: "Название", done: Boolean(name.trim()) },
+    { label: "Цена", done: priceNumber > 0 },
+    { label: "Адрес", done: Boolean(location.trim()) },
+    { label: "Категория", done: Boolean(category) },
+  ];
 
   useEffect(() => {
     if (!editId) return;
@@ -302,7 +315,32 @@ function AddItemContent() {
     e.preventDefault();
 
     if (!formReady) {
-      alert("Заполните название, цену, адрес и категорию.");
+      if (!images.length) {
+        alert("Добавьте хотя бы одно фото вещи.");
+        return;
+      }
+
+      if (!name.trim()) {
+        alert("Укажите название вещи.");
+        return;
+      }
+
+      if (priceNumber <= 0) {
+        alert("Укажите цену аренды за день.");
+        return;
+      }
+
+      if (!location.trim()) {
+        alert("Укажите адрес передачи.");
+        return;
+      }
+
+      if (!category) {
+        alert("Выберите категорию.");
+        return;
+      }
+
+      alert("Проверьте обязательные поля объявления.");
       return;
     }
 
@@ -403,11 +441,109 @@ function AddItemContent() {
           </div>
         </div>
 
+        <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StepCard index="1" title="Фото" text="Главное фото и ракурсы вещи" active={images.length === 0} done={images.length > 0} />
+          <StepCard index="2" title="Описание" text="Название, состояние и комплект" active={images.length > 0 && !name.trim()} done={Boolean(name.trim() && description.trim())} />
+          <StepCard index="3" title="Цена" text="Стоимость аренды и залог" active={Boolean(name.trim()) && priceNumber <= 0} done={priceNumber > 0} />
+          <StepCard index="4" title="Адрес" text="Где удобно передать вещь" active={priceNumber > 0 && (!location.trim() || !category)} done={Boolean(location.trim() && category)} />
+        </div>
+
+        {isEditMode && (
+          <div className="mb-6 rounded-[24px] border border-[#FFE0A3] bg-[#FFF8EA] px-5 py-4 text-sm font-bold leading-relaxed text-[#8A5A00]">
+            После сохранения объявление останется опубликованным, но снова появится у администратора в списке модерации.
+          </div>
+        )}
+
         <form
           onSubmit={handleSubmit}
           className="grid gap-6 lg:grid-cols-[1fr_420px] lg:gap-8"
         >
           <section className="space-y-6 rounded-[28px] border border-black/5 bg-white p-4 shadow-sm sm:p-5 lg:rounded-[32px] lg:p-8">
+            <FormSectionHeader
+              eyebrow="Шаг 1"
+              title="Фотографии"
+              text="Добавьте хотя бы одно фото. Первое фото станет главным в каталоге."
+            />
+
+            <div>
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-black/15 bg-[#F7F7F5] px-6 py-10 text-center transition hover:border-[#7BC47F] hover:bg-[#F1FAF2]">
+                <input
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    uploadImages(files);
+                    e.target.value = "";
+                  }}
+                  className="sr-only"
+                />
+                <span className="text-4xl">📷</span>
+                <span className="mt-3 text-lg font-black">
+                  {uploading ? "Загружаем фото..." : "Выбрать фото"}
+                </span>
+                <span className="mt-1 text-sm text-[#6B6B6B]">
+                  JPG, PNG или WebP. Лучше добавить 3-5 фото с разных ракурсов.
+                </span>
+              </label>
+              {uploadStatus && (
+                <div className="mt-3 rounded-2xl bg-[#E8F7EA] px-4 py-3 text-sm font-bold text-[#3F9E47]">
+                  {uploadStatus}
+                </div>
+              )}
+              {uploadError && (
+                <div className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+                  {uploadError}
+                </div>
+              )}
+              {images.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {images.map((img, index) => (
+                    <div
+                      key={img}
+                      className={`relative overflow-hidden rounded-2xl border bg-[#F7F7F5] ${
+                        index === 0 ? "border-[#7BC47F]" : "border-black/10"
+                      }`}
+                    >
+                      <img src={img} alt="" className="h-32 w-full object-cover sm:h-28" />
+
+                      {index === 0 && (
+                        <div className="absolute left-2 top-2 rounded-full bg-[#7BC47F] px-2 py-1 text-xs font-bold text-white">
+                          Главное
+                        </div>
+                      )}
+
+                      <div className="absolute bottom-2 left-2 right-2 flex gap-2">
+                        {index !== 0 && (
+                          <button
+                            type="button"
+                            onClick={() => makeMainImage(img)}
+                            className="flex-1 rounded-full bg-white/95 px-3 py-2 text-xs font-bold shadow-sm"
+                          >
+                            Главным
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => removeImage(img)}
+                          className="rounded-full bg-white/95 px-3 py-2 text-xs font-bold text-red-500 shadow-sm"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <FormSectionHeader
+              eyebrow="Шаг 2"
+              title="Описание"
+              text="Напишите так, чтобы арендатор быстро понял состояние и комплектацию."
+            />
+
             <div>
               <label className="mb-2 block text-sm font-bold text-[#6B6B6B]">
                 Название вещи
@@ -419,6 +555,24 @@ function AddItemContent() {
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-bold text-[#6B6B6B]">
+                Описание
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Состояние, комплектация, условия передачи"
+                className="min-h-[150px] w-full rounded-2xl bg-[#F7F7F5] px-5 py-4 text-lg outline-none transition focus:ring-2 focus:ring-[#7BC47F]"
+              />
+            </div>
+
+            <FormSectionHeader
+              eyebrow="Шаг 3"
+              title="Цена и залог"
+              text="Укажите цену за сутки и возвратный залог на случай повреждений."
+            />
 
             <div className="grid gap-5 md:grid-cols-2">
               <div>
@@ -460,17 +614,11 @@ function AddItemContent() {
               </div>
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-bold text-[#6B6B6B]">
-                Описание
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Состояние, комплектация, условия передачи"
-                className="min-h-[150px] w-full rounded-2xl bg-[#F7F7F5] px-5 py-4 text-lg outline-none transition focus:ring-2 focus:ring-[#7BC47F]"
-              />
-            </div>
+            <FormSectionHeader
+              eyebrow="Шаг 4"
+              title="Адрес и категория"
+              text="Адрес нужен для поиска рядом и мини-карты в карточке товара."
+            />
 
             <div className="grid gap-5 md:grid-cols-2">
               <div className="relative">
@@ -546,84 +694,32 @@ function AddItemContent() {
               </div>
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-bold text-[#6B6B6B]">
-                Фотографии
-              </label>
-              <label className="flex cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-black/15 bg-[#F7F7F5] px-6 py-10 text-center transition hover:border-[#7BC47F] hover:bg-[#F1FAF2]">
-                <input
-                  type="file"
-                  multiple
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
-                    uploadImages(files);
-                    e.target.value = "";
-                  }}
-                  className="sr-only"
-                />
-                <span className="text-4xl">📷</span>
-                <span className="mt-3 text-lg font-black">
-                  {uploading ? "Загружаем фото..." : "Выбрать фото"}
-                </span>
-                <span className="mt-1 text-sm text-[#6B6B6B]">
-                  JPG, PNG или WebP. Лучше добавить 3-5 фото с разных ракурсов.
-                </span>
-              </label>
-              {uploadStatus && (
-                <div className="mt-3 rounded-2xl bg-[#E8F7EA] px-4 py-3 text-sm font-bold text-[#3F9E47]">
-                  {uploadStatus}
-                </div>
-              )}
-              {uploadError && (
-                <div className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
-                  {uploadError}
-                </div>
-              )}
-              {images.length > 0 && (
-                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {images.map((img, index) => (
-                    <div
-                      key={img}
-                      className={`relative overflow-hidden rounded-2xl border bg-[#F7F7F5] ${
-                        index === 0 ? "border-[#7BC47F]" : "border-black/10"
-                      }`}
-                    >
-                      <img src={img} alt="" className="h-32 w-full object-cover sm:h-28" />
-
-                      {index === 0 && (
-                        <div className="absolute left-2 top-2 rounded-full bg-[#7BC47F] px-2 py-1 text-xs font-bold text-white">
-                          Главное
-                        </div>
-                      )}
-
-                      <div className="absolute bottom-2 left-2 right-2 flex gap-2">
-                        {index !== 0 && (
-                          <button
-                            type="button"
-                            onClick={() => makeMainImage(img)}
-                            className="flex-1 rounded-full bg-white/95 px-3 py-2 text-xs font-bold shadow-sm"
-                          >
-                            Главным
-                          </button>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => removeImage(img)}
-                          className="rounded-full bg-white/95 px-3 py-2 text-xs font-bold text-red-500 shadow-sm"
-                        >
-                          Удалить
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </section>
 
           <aside className="h-fit space-y-5 lg:sticky lg:top-32">
+            <div className="rounded-[28px] bg-white p-5 shadow-sm">
+              <div className="text-lg font-black">Готовность объявления</div>
+              <div className="mt-4 space-y-2">
+                {completionItems.map((item) => (
+                  <div
+                    key={item.label}
+                    className="flex items-center justify-between rounded-2xl bg-[#F7F7F5] px-4 py-3 text-sm font-bold"
+                  >
+                    <span>{item.label}</span>
+                    <span
+                      className={`flex h-7 w-7 items-center justify-center rounded-full text-xs ${
+                        item.done
+                          ? "bg-[#7BC47F] text-white"
+                          : "bg-white text-[#8D8D8D]"
+                      }`}
+                    >
+                      {item.done ? "✓" : "·"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="overflow-hidden rounded-[28px] bg-white shadow-sm lg:rounded-[32px]">
               <img
                 src={previewImage}
@@ -708,6 +804,68 @@ function AddItemContent() {
         </form>
       </div>
     </main>
+  );
+}
+
+function StepCard({
+  active,
+  done,
+  index,
+  text,
+  title,
+}: {
+  active: boolean;
+  done: boolean;
+  index: string;
+  text: string;
+  title: string;
+}) {
+  return (
+    <div
+      className={`rounded-[22px] border p-4 shadow-sm transition ${
+        done
+          ? "border-[#7BC47F] bg-[#F1FAF2]"
+          : active
+            ? "border-[#7BC47F] bg-white"
+            : "border-black/5 bg-white"
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black ${
+            done ? "bg-[#7BC47F] text-white" : "bg-[#F7F7F5] text-[#111111]"
+          }`}
+        >
+          {done ? "✓" : index}
+        </div>
+        <div>
+          <div className="text-sm font-black">{title}</div>
+          <div className="mt-1 text-xs leading-relaxed text-[#6B6B6B]">
+            {text}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FormSectionHeader({
+  eyebrow,
+  text,
+  title,
+}: {
+  eyebrow: string;
+  text: string;
+  title: string;
+}) {
+  return (
+    <div className="rounded-[24px] bg-[#F7F7F5] px-5 py-4">
+      <div className="text-xs font-black uppercase text-[#7BC47F]">
+        {eyebrow}
+      </div>
+      <h2 className="mt-1 text-2xl font-black">{title}</h2>
+      <p className="mt-2 text-sm leading-relaxed text-[#6B6B6B]">{text}</p>
+    </div>
   );
 }
 
