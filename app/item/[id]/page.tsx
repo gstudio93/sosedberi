@@ -7,6 +7,7 @@ import "react-datepicker/dist/react-datepicker.css";
 
 import { registerLocale } from "react-datepicker";
 import { ru } from "date-fns/locale";
+import ItemCard from "@/components/ItemCard";
 
 registerLocale("ru", ru);
 
@@ -1014,59 +1015,9 @@ calendarStartDay={1}
 
 function ItemRail({ items }: { items: any[] }) {
   return (
-    <div className="flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-4 lg:overflow-visible">
+    <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
       {items.map((related) => (
-        <a
-          key={related.id}
-          href={getItemUrl(related)}
-          className="group min-w-[250px] overflow-hidden rounded-[24px] border border-black/5 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
-        >
-          <div className="relative h-44 overflow-hidden bg-[#EFEFEB]">
-            <img
-              src={related.image || "/hero.jpg"}
-              alt={related.name}
-              className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-            />
-            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/45 to-transparent" />
-            {related.category && (
-              <div className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-black text-[#3F9E47] shadow-sm">
-                {related.category}
-              </div>
-            )}
-          </div>
-
-          <div className="p-4">
-            <h3 className="line-clamp-2 min-h-[44px] text-base font-black leading-tight">
-              {related.name}
-            </h3>
-
-            <p className="mt-2 line-clamp-1 text-sm text-[#6B6B6B]">
-              📍 {related.location || "Город не указан"}
-            </p>
-
-            <div className="mt-4 flex items-end justify-between gap-3">
-              <div>
-                <div className="text-xl font-black">
-                  {Number(related.price || 0).toLocaleString("ru-RU")} ₽
-                </div>
-                <div className="text-xs font-bold uppercase text-[#8D8D8D]">
-                  в день
-                </div>
-              </div>
-
-              {Number(related.deposit || 0) > 0 && (
-                <div className="rounded-2xl bg-[#F7F7F5] px-3 py-2 text-right">
-                  <div className="text-[10px] font-bold uppercase text-[#8D8D8D]">
-                    Залог
-                  </div>
-                  <div className="text-sm font-black">
-                    {Number(related.deposit).toLocaleString("ru-RU")} ₽
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </a>
+        <ItemCard key={related.id} item={related} />
       ))}
     </div>
   );

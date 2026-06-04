@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { getItemUrl } from "@/lib/item-url";
+import ItemCard from "@/components/ItemCard";
 import { supabase } from "../../../lib/supabase";
 
 type Tab = "items" | "reviews" | "details";
@@ -327,36 +327,14 @@ export default function UserPage() {
             ) : (
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {items.map((item) => (
-                  <Link
+                  <ItemCard
                     key={item.id}
-                    href={getItemUrl(item)}
-                    className="group overflow-hidden rounded-[22px] border border-black/5 bg-[#F7F7F5] transition hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    <div className="aspect-[4/3] overflow-hidden bg-white">
-                      <img
-                        src={item.image || "/hero.jpg"}
-                        alt=""
-                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                      />
-                    </div>
-
-                    <div className="p-5">
-                      <h3 className="line-clamp-1 text-lg font-extrabold">
-                        {item.name}
-                      </h3>
-                      <p className="mt-2 line-clamp-2 min-h-10 text-sm text-[#6B6B6B]">
-                        {item.location || item.city || "Местоположение не указано"}
-                      </p>
-                      <div className="mt-4 flex items-end justify-between gap-3">
-                        <div className="text-2xl font-extrabold">
-                          {Number(item.price || 0).toLocaleString("ru-RU")} ₽
-                        </div>
-                        <div className="pb-1 text-xs font-bold uppercase text-[#8D8D8D]">
-                          в день
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
+                    item={{
+                      ...item,
+                      owner_profile: profile,
+                    }}
+                    tone="soft"
+                  />
                 ))}
               </div>
             )}
