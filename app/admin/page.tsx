@@ -18,6 +18,8 @@ export default function AdminPage() {
   const [items, setItems] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [disputes, setDisputes] = useState<any[]>([]);
+  const [expandedModerationId, setExpandedModerationId] = useState("");
+  const [rejectComments, setRejectComments] = useState<Record<string, string>>({});
 
   useEffect(() => {
     init();
@@ -160,9 +162,7 @@ export default function AdminPage() {
     );
   }
 
-  async function rejectItem(id: string) {
-    const comment = prompt("Причина блокировки объявления");
-
+  async function rejectItem(id: string, comment: string) {
     if (!comment?.trim()) return;
 
     const targetItem = items.find((item) => item.id === id);
@@ -321,6 +321,9 @@ export default function AdminPage() {
   const pendingUsers = users.filter((user) => !user.verified || !user.phone_verified);
   const moderationQueue = items.filter(
     (item) => (item.moderation_status || "pending") === "pending"
+  );
+  const reviewedItems = items.filter(
+    (item) => (item.moderation_status || "pending") !== "pending"
   );
   const openDisputes = disputes.filter((report) => report.status === "disputed");
   const closedDisputes = disputes.filter((report) => report.status === "resolved");
@@ -511,59 +514,61 @@ export default function AdminPage() {
         )}
 
         {activeTab === "moderation" && (
-          <Panel title="Очередь модерации" subtitle="Сюда попадают новые и отредактированные объявления. После проверки они уходят из очереди.">
-            <div className="overflow-hidden rounded-[20px] border border-black/5">
-              <TableHeader cols="grid-cols-[1.5fr_1fr_0.8fr_1.1fr]">
-                <span>Объявление</span>
-                <span>Локация</span>
-                <span>Цена</span>
-                <span>Действия</span>
-              </TableHeader>
+          <Panel title="Модерация объявлений" subtitle="Новые и отредактированные объявления проверяются по фото, описанию, комплекту, условиям передачи и цене.">
+            <div className="mb-7">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-xl font-extrabold">На модерации</h3>
+                <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-700">
+                  {moderationQueue.length}
+                </span>
+              </div>
 
-              {moderationQueue.length === 0 ? (
-                <Empty text="Очередь модерации пуста." />
-              ) : (
-                moderationQueue.map((item) => (
-                  <div
-                    key={item.id}
-                    className="grid grid-cols-1 gap-3 border-t border-black/5 p-4 text-sm md:grid-cols-[1.5fr_1fr_0.8fr_1.1fr] md:items-center"
-                  >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={item.image || "/hero.jpg"}
-                        alt=""
-                        className="h-14 w-16 rounded-xl object-cover"
-                      />
-                      <div>
-                        <div className="font-extrabold">{item.name}</div>
-                        <div className="text-xs text-yellow-700">На проверке</div>
-                      </div>
-                    </div>
-                    <div className="text-[#6B6B6B]">{item.location || item.city || "Не указано"}</div>
-                    <div className="font-extrabold">{formatMoney(Number(item.price || 0))}</div>
-                    <div className="flex flex-wrap gap-2">
-                      <Link
-                        href={getItemUrl(item)}
-                        className="rounded-full bg-white px-4 py-2 text-xs font-bold"
-                      >
-                        Открыть
-                      </Link>
-                      <button
-                        onClick={() => approveItem(item.id)}
-                        className="rounded-full bg-[#7BC47F] px-4 py-2 text-xs font-bold text-white"
-                      >
-                        Одобрить
-                      </button>
-                      <button
-                        onClick={() => rejectItem(item.id)}
-                        className="rounded-full bg-red-500 px-4 py-2 text-xs font-bold text-white"
-                      >
-                        Блокировать
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
+              <div className="space-y-4">
+                {moderationQueue.length === 0 ? (
+                  <Empty text="Очередь модерации пуста." />
+                ) : (
+                  moderationQueue.map((item) => (
+                    <ModerationItemCard
+                      key={item.id}
+                      item={item}
+                      owner={userById[item.owner_id]}
+                      expanded={expandedModerationId === item.id}
+                      rejectComment={rejectComments[item.id] || ""}
+                      onToggle={() =>
+                        setExpandedModerationId((current) => (current === item.id ? "" : item.id))
+                      }
+                      onRejectCommentChange={(value) =>
+                        setRejectComments((prev) => ({ ...prev, [item.id]: value }))
+                      }
+                      onApprove={() => approveItem(item.id)}
+                      onReject={() => rejectItem(item.id, rejectComments[item.id] || "")}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-xl font-extrabold">Проверенные</h3>
+                <span className="rounded-full bg-[#F7F7F5] px-3 py-1 text-xs font-bold text-[#6B6B6B]">
+                  {reviewedItems.length}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {reviewedItems.length === 0 ? (
+                  <Empty text="Проверенных объявлений пока нет." />
+                ) : (
+                  reviewedItems.slice(0, 12).map((item) => (
+                    <ReviewedModerationRow
+                      key={item.id}
+                      item={item}
+                      owner={userById[item.owner_id]}
+                    />
+                  ))
+                )}
+              </div>
             </div>
           </Panel>
         )}
@@ -770,6 +775,163 @@ function BookingRow({ booking }: { booking: any }) {
       <div className="font-extrabold">{formatMoney(getBookingAmount(booking))}</div>
       <div className="text-sm text-[#6B6B6B]">Оплата: {booking.payment_status}</div>
       <StatusBadge status={booking.status} />
+    </div>
+  );
+}
+
+function ModerationItemCard({
+  item,
+  owner,
+  expanded,
+  rejectComment,
+  onToggle,
+  onRejectCommentChange,
+  onApprove,
+  onReject,
+}: {
+  item: any;
+  owner?: any;
+  expanded: boolean;
+  rejectComment: string;
+  onToggle: () => void;
+  onRejectCommentChange: (value: string) => void;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const ownerName = getProfileName(owner, "Владелец");
+  const updatedAt = item.updated_at || item.created_at;
+
+  return (
+    <div className="rounded-[24px] border border-black/5 bg-[#F7F7F5] p-4">
+      <div className="grid gap-4 lg:grid-cols-[120px_minmax(0,1fr)_260px] lg:items-start">
+        <img
+          src={item.image || "/hero.jpg"}
+          alt=""
+          className="h-36 w-full rounded-2xl object-cover lg:h-24"
+        />
+
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="break-words text-lg font-extrabold">{item.name || "Без названия"}</h3>
+            <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-700">
+              На проверке
+            </span>
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[#6B6B6B]">
+            <span>{item.category || "Категория не указана"}</span>
+            <span>{item.location || item.city || "Адрес не указан"}</span>
+            <span>{formatMoney(Number(item.price || 0))} / день</span>
+            <span>Залог {formatMoney(Number(item.deposit || 0))}</span>
+          </div>
+
+          <div className="mt-2 text-xs font-bold text-[#8D8D8D]">
+            Владелец: {ownerName} · Изменено:{" "}
+            {updatedAt ? new Date(updatedAt).toLocaleString("ru-RU") : "нет даты"}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Link
+            href={getItemUrl(item)}
+            className="rounded-full bg-white px-4 py-2.5 text-center text-sm font-bold"
+          >
+            Открыть
+          </Link>
+          <button
+            onClick={onToggle}
+            className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm font-bold"
+          >
+            {expanded ? "Скрыть детали" : "Проверить детали"}
+          </button>
+          <button
+            onClick={onApprove}
+            className="rounded-full bg-[#7BC47F] px-4 py-2.5 text-sm font-bold text-white"
+          >
+            Одобрить
+          </button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="mt-4 grid gap-4 border-t border-black/5 pt-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="grid gap-3 md:grid-cols-2">
+            <ModerationDetail title="Описание" text={item.description || "Описание не заполнено."} />
+            <ModerationDetail title="Комплектация" text={item.equipment || "Комплектация не заполнена."} />
+            <ModerationDetail title="Условия передачи" text={item.handover_terms || "Условия передачи не заполнены."} />
+            <ModerationDetail
+              title="Служебно"
+              text={`ID: ${item.id}\nВладелец: ${owner?.email || ownerName}\nСтатус объявления: ${item.status || "active"}`}
+            />
+          </div>
+
+          <div className="rounded-[22px] bg-white p-4">
+            <label className="text-sm font-extrabold">Комментарий при блокировке</label>
+            <textarea
+              value={rejectComment}
+              onChange={(event) => onRejectCommentChange(event.target.value)}
+              placeholder="Например: фото не соответствует товару, нет описания комплекта, запрещенный товар"
+              className="mt-3 min-h-28 w-full rounded-2xl bg-[#F7F7F5] p-3 text-sm outline-none"
+            />
+            <button
+              onClick={onReject}
+              disabled={!rejectComment.trim()}
+              className="mt-3 w-full rounded-full bg-red-500 px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-red-200"
+            >
+              Заблокировать с комментарием
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReviewedModerationRow({ item, owner }: { item: any; owner?: any }) {
+  const status = item.moderation_status || "pending";
+  const statusClass =
+    status === "approved"
+      ? "bg-[#E8F7EA] text-[#3F9E47]"
+      : "bg-red-50 text-red-600";
+
+  return (
+    <div className="grid gap-3 rounded-[20px] border border-black/5 bg-[#F7F7F5] p-4 text-sm md:grid-cols-[minmax(0,1fr)_150px_160px] md:items-center">
+      <div className="flex min-w-0 items-center gap-3">
+        <img
+          src={item.image || "/hero.jpg"}
+          alt=""
+          className="h-14 w-16 shrink-0 rounded-xl object-cover"
+        />
+        <div className="min-w-0">
+          <div className="truncate font-extrabold">{item.name || "Без названия"}</div>
+          <div className="truncate text-xs text-[#8D8D8D]">
+            {getProfileName(owner, "Владелец")} · {item.location || item.city || "Адрес не указан"}
+          </div>
+          {item.moderation_comment && (
+            <div className="mt-1 line-clamp-2 text-xs text-red-600">
+              {item.moderation_comment}
+            </div>
+          )}
+        </div>
+      </div>
+      <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${statusClass}`}>
+        {status === "approved" ? "Одобрено" : "Заблокировано"}
+      </span>
+      <Link
+        href={getItemUrl(item)}
+        className="rounded-full bg-white px-4 py-2 text-center text-xs font-bold"
+      >
+        Открыть
+      </Link>
+    </div>
+  );
+}
+
+function ModerationDetail({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-[20px] bg-white p-4">
+      <div className="mb-2 text-xs font-bold uppercase text-[#8D8D8D]">{title}</div>
+      <p className="whitespace-pre-line break-words text-sm leading-6 text-[#333333]">{text}</p>
     </div>
   );
 }
