@@ -17,6 +17,15 @@ function toBookingDate(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
 }
 
+const BLOCKING_BOOKING_STATUSES = new Set([
+  "pending",
+  "approved",
+  "paid",
+  "active",
+  "handover_pending",
+  "return_pending",
+]);
+
 export default function ItemPage() {
   const params = useParams();
   const router = useRouter();
@@ -203,6 +212,8 @@ async function loadOwnerItems() {
     const normalizedEndDate = toBookingDate(endDate);
 
     const hasConflict = bookings.some((booking: any) => {
+      if (!BLOCKING_BOOKING_STATUSES.has(booking.status)) return false;
+
       return (
         normalizedStartDate <= new Date(booking.end_date) &&
         normalizedEndDate >= new Date(booking.start_date)
@@ -281,6 +292,23 @@ function getTotalWithDeposit() {
   return getTotalPrice() + getDepositAmount();
 }
 
+function getSelectedPeriodLabel() {
+  if (!startDate || !endDate) return "Даты не выбраны";
+
+  return `${startDate.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+  })} — ${endDate.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+  })}`;
+}
+
+const canBook = Boolean(startDate && endDate);
+const bookingButtonText = canBook
+  ? "Отправить заявку на бронь"
+  : "Выберите даты";
+
 const ownerDisplayName =
   ownerProfile?.full_name ||
   ownerProfile?.username ||
@@ -292,6 +320,9 @@ const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
 const mapSrc = hasCoordinates
   ? `https://yandex.ru/map-widget/v1/?ll=${longitude},${latitude}&z=16&pt=${longitude},${latitude},pm2grm`
   : `https://yandex.ru/map-widget/v1/?text=${encodeURIComponent(item.location || "Россия")}&z=15`;
+const blockingBookings = bookings.filter((booking) =>
+  BLOCKING_BOOKING_STATUSES.has(booking.status)
+);
 
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-4 pb-44 pt-28 text-[#111111] sm:px-6 lg:pb-20 lg:pt-32">
@@ -543,9 +574,19 @@ const mapSrc = hasCoordinates
         {/* RIGHT SIDEBAR */}
         <div className="h-fit">
           <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-lg">
-            <h1 className="text-2xl font-black leading-tight lg:text-4xl">
+            <h1 className="text-[28px] font-black leading-[1.05] sm:text-3xl lg:text-[34px]">
   {item.name}
 </h1>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {item.category && (
+                <span className="rounded-full bg-[#F1FAF2] px-3 py-1.5 text-xs font-black text-[#3F9E47]">
+                  {item.category}
+                </span>
+              )}
+              <span className="rounded-full bg-[#F7F7F5] px-3 py-1.5 text-xs font-black text-[#6B6B6B]">
+                {item.location || "Город не указан"}
+              </span>
+            </div>
             
 
             <button
@@ -560,9 +601,27 @@ const mapSrc = hasCoordinates
             </button>
 
             <div className="mt-5 rounded-[26px] bg-[#F7F7F5] p-5">
-              <h2 className="mb-4 text-xl font-black">
-                Выберите даты
-              </h2>
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-black">Даты аренды</h2>
+                  <p className="mt-1 text-sm font-bold text-[#6B6B6B]">
+                    {getSelectedPeriodLabel()}
+                  </p>
+                </div>
+
+                {startDate && endDate && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStartDate(null);
+                      setEndDate(null);
+                    }}
+                    className="rounded-full bg-white px-3 py-2 text-xs font-black text-[#3F9E47]"
+                  >
+                    Сбросить
+                  </button>
+                )}
+              </div>
 <div className="item-booking-calendar mx-auto w-full max-w-[280px] overflow-visible">
               <DatePicker
               locale="ru"
@@ -580,7 +639,7 @@ calendarStartDay={1}
                 endDate={endDate}
                 selectsRange
                 inline
-                excludeDateIntervals={bookings.map((booking) => ({
+                excludeDateIntervals={blockingBookings.map((booking) => ({
                   start: new Date(booking.start_date),
                   end: new Date(booking.end_date),
                 }))}
@@ -590,13 +649,13 @@ calendarStartDay={1}
   <div className="flex items-start justify-between gap-4">
     <div>
       <div className="text-sm font-bold uppercase tracking-wide text-[#8D8D8D]">
-        Цена
+        Цена аренды
       </div>
       <div className="mt-1 text-2xl font-black tracking-tight">
-        {Number(item.price) || 0} ₽
+        {Number(item.price || 0).toLocaleString("ru-RU")} ₽
       </div>
       <div className="mt-1 text-sm text-[#6B6B6B]">
-        за день аренды
+        за сутки
       </div>
     </div>
 
@@ -606,7 +665,7 @@ calendarStartDay={1}
           Залог
         </div>
         <div className="mt-1 text-xl font-black">
-          {getDepositAmount()} ₽
+          {getDepositAmount().toLocaleString("ru-RU")} ₽
         </div>
       </div>
     )}
@@ -619,7 +678,7 @@ calendarStartDay={1}
           {getRentalDays()} дн. аренды
         </span>
         <span className="font-bold">
-          {getTotalPrice()} ₽
+          {getTotalPrice().toLocaleString("ru-RU")} ₽
         </span>
       </div>
 
@@ -629,27 +688,30 @@ calendarStartDay={1}
             Возвратный залог
           </span>
           <span className="font-bold">
-            {getDepositAmount()} ₽
+            {getDepositAmount().toLocaleString("ru-RU")} ₽
           </span>
         </div>
       )}
 
-      <div className="flex items-center justify-between border-t border-black/10 pt-4">
-        <span className="font-bold">Итого</span>
-        <span className="text-2xl font-black">
-          {getTotalWithDeposit()} ₽
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-[#6B6B6B]">
+          К оплате сейчас
+        </span>
+        <span className="font-bold">
+          {getTotalPrice().toLocaleString("ru-RU")} ₽
         </span>
       </div>
 
-      <button
-        onClick={() => {
-          setStartDate(null);
-          setEndDate(null);
-        }}
-        className="text-sm font-bold text-[#7BC47F]"
-      >
-        Очистить даты
-      </button>
+      <div className="flex items-center justify-between border-t border-black/10 pt-4">
+        <span className="font-bold">Итого с залогом</span>
+        <span className="text-2xl font-black">
+          {getTotalWithDeposit().toLocaleString("ru-RU")} ₽
+        </span>
+      </div>
+
+      <p className="rounded-2xl bg-[#F7F7F5] p-3 text-xs font-bold leading-relaxed text-[#6B6B6B]">
+        Залог возвращается после подтверждения возврата, если вещь вернулась без спорных повреждений.
+      </p>
     </div>
   ) : (
     <div className="mt-6 rounded-2xl bg-[#F7F7F5] p-4 text-sm leading-relaxed text-[#6B6B6B]">
@@ -659,10 +721,15 @@ calendarStartDay={1}
 </div>
             <button
   onClick={handleBooking}
-  className="mt-5 w-full rounded-full bg-[#7BC47F] px-5 py-4 text-base font-bold text-white transition hover:bg-[#69B56E]"
+  disabled={!canBook}
+  className="mt-5 w-full rounded-full bg-[#7BC47F] px-5 py-4 text-base font-bold text-white transition hover:bg-[#69B56E] disabled:cursor-not-allowed disabled:bg-[#CFCFCB] disabled:text-white"
 >
-  Забронировать
+  {bookingButtonText}
 </button>
+
+            <div className="mt-3 rounded-2xl bg-[#F7F7F5] px-4 py-3 text-xs font-bold leading-relaxed text-[#6B6B6B]">
+              Формальная оплата появится после одобрения владельцем. Сейчас заявка отправляется владельцу на подтверждение.
+            </div>
 
             <a
               href={`/chat/${item.id}?owner=${item.owner_id}`}
@@ -676,10 +743,10 @@ calendarStartDay={1}
             <h2 className="text-xl font-bold">Занятые даты</h2>
 
             <div className="mt-4 space-y-3">
-              {bookings.length === 0 ? (
+              {blockingBookings.length === 0 ? (
                 <div className="text-[#6B6B6B]">Пока свободно</div>
               ) : (
-                bookings.map((booking) => (
+                blockingBookings.map((booking) => (
                   <div
                     key={booking.id}
                     className="rounded-xl bg-[#F7F7F5] p-4 text-sm"
@@ -794,22 +861,23 @@ calendarStartDay={1}
     <div className="min-w-0">
       <div className="truncate text-lg font-black">
         {startDate && endDate
-          ? `${getTotalPrice()} ₽`
-          : `${item.price} ₽`}
+          ? `${getTotalPrice().toLocaleString("ru-RU")} ₽`
+          : `${Number(item.price || 0).toLocaleString("ru-RU")} ₽`}
       </div>
 
       <div className="text-xs text-[#6B6B6B]">
         {startDate && endDate
-          ? `За ${getRentalDays()} дн.`
-          : "за день аренды"}
+          ? `${getRentalDays()} дн. · залог ${getDepositAmount().toLocaleString("ru-RU")} ₽`
+          : "за сутки, выберите даты"}
       </div>
     </div>
 
     <button
       onClick={handleBooking}
-      className="shrink-0 rounded-full bg-[#7BC47F] px-6 py-4 text-sm font-bold text-white"
+      disabled={!canBook}
+      className="shrink-0 rounded-full bg-[#7BC47F] px-5 py-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#CFCFCB]"
     >
-      Забронировать
+      {canBook ? "Забронировать" : "Даты"}
     </button>
   </div>
 </div>
