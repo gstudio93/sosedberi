@@ -15,6 +15,8 @@ type NotificationItem = {
   is_read: boolean | null;
 };
 
+type NotificationFilter = "all" | "unread" | "booking" | "message" | "moderation" | "dispute" | "handover";
+
 const notificationMeta: Record<string, { label: string; short: string; className: string }> = {
   booking: {
     label: "Бронь",
@@ -70,11 +72,59 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<NotificationFilter>("all");
 
   const unreadCount = useMemo(
     () => notifications.filter((notification) => !notification.is_read).length,
     [notifications]
   );
+  const filterItems = useMemo(
+    () => [
+      { id: "all" as const, label: "Все", count: notifications.length },
+      { id: "unread" as const, label: "Новые", count: unreadCount },
+      {
+        id: "booking" as const,
+        label: "Брони",
+        count: notifications.filter((notification) => notification.type === "booking").length,
+      },
+      {
+        id: "message" as const,
+        label: "Сообщения",
+        count: notifications.filter((notification) => notification.type === "message").length,
+      },
+      {
+        id: "handover" as const,
+        label: "Передача",
+        count: notifications.filter((notification) =>
+          ["handover", "return", "payment"].includes(notification.type || "")
+        ).length,
+      },
+      {
+        id: "moderation" as const,
+        label: "Модерация",
+        count: notifications.filter((notification) => notification.type === "moderation").length,
+      },
+      {
+        id: "dispute" as const,
+        label: "Споры",
+        count: notifications.filter((notification) => notification.type === "dispute").length,
+      },
+    ],
+    [notifications, unreadCount]
+  );
+  const visibleNotifications = useMemo(() => {
+    if (activeFilter === "all") return notifications;
+    if (activeFilter === "unread") {
+      return notifications.filter((notification) => !notification.is_read);
+    }
+    if (activeFilter === "handover") {
+      return notifications.filter((notification) =>
+        ["handover", "return", "payment"].includes(notification.type || "")
+      );
+    }
+
+    return notifications.filter((notification) => notification.type === activeFilter);
+  }, [activeFilter, notifications]);
 
   useEffect(() => {
     let channel: RealtimeChannel | null = null;
@@ -215,7 +265,42 @@ export default function NotificationsPage() {
           </div>
         </div>
 
+        <section className="mb-4 grid gap-3 sm:grid-cols-3">
+          <NotificationSummaryCard label="Всего событий" value={notifications.length} />
+          <NotificationSummaryCard label="Новых" value={unreadCount} tone="accent" />
+          <NotificationSummaryCard
+            label="Требуют действия"
+            value={
+              notifications.filter(
+                (notification) =>
+                  !notification.is_read &&
+                  ["booking", "handover", "return", "payment", "moderation", "dispute"].includes(
+                    notification.type || ""
+                  )
+              ).length
+            }
+          />
+        </section>
+
         <section className="rounded-[28px] border border-black/5 bg-white p-3 shadow-sm sm:p-4">
+          <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+            {filterItems.map((filter) => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setActiveFilter(filter.id)}
+                className={`shrink-0 rounded-full px-4 py-2 text-sm font-extrabold transition ${
+                  activeFilter === filter.id
+                    ? "bg-[#111111] text-white"
+                    : "bg-[#F7F7F5] text-[#555555] hover:bg-[#EFEFEB]"
+                }`}
+              >
+                {filter.label}
+                <span className="ml-2 opacity-70">{filter.count}</span>
+              </button>
+            ))}
+          </div>
+
           {notifications.length === 0 ? (
             <div className="rounded-[22px] bg-[#F7F7F5] p-8 text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-xl font-black shadow-sm">
@@ -226,61 +311,112 @@ export default function NotificationsPage() {
                 Когда появятся брони, сообщения или решения по аренде, они будут здесь.
               </p>
             </div>
+          ) : visibleNotifications.length === 0 ? (
+            <div className="rounded-[22px] bg-[#F7F7F5] p-8 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-xl font-black shadow-sm">
+                ✓
+              </div>
+              <h2 className="mt-4 text-xl font-black">Здесь пока пусто</h2>
+              <p className="mt-2 text-sm text-[#6B6B6B]">
+                Для выбранного типа уведомлений ничего нет.
+              </p>
+            </div>
           ) : (
             <div className="space-y-3">
-              {notifications.map((notification) => {
-                const meta = getNotificationMeta(notification.type);
-
-                return (
-                  <Link
-                    key={notification.id}
-                    href={notification.link || "/profile"}
-                    onClick={() => markAsRead(notification.id)}
-                    className={`block rounded-[22px] border p-4 transition hover:-translate-y-0.5 hover:shadow-md sm:p-5 ${
-                      notification.is_read
-                        ? "border-black/5 bg-[#F7F7F5]"
-                        : "border-[#7BC47F]/35 bg-[#F8FFF8]"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3 sm:gap-4">
-                      <div
-                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-black ${meta.className}`}
-                      >
-                        {meta.short}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-extrabold text-[#6B6B6B] shadow-sm">
-                            {meta.label}
-                          </span>
-                          {!notification.is_read && (
-                            <span className="h-2.5 w-2.5 rounded-full bg-[#7BC47F]" />
-                          )}
-                        </div>
-
-                        <div className="mt-2 break-words text-base font-extrabold leading-snug sm:text-lg">
-                          {notification.text || "Новое уведомление"}
-                        </div>
-
-                        <div className="mt-2 text-sm text-[#8D8D8D]">
-                          {new Date(notification.created_at).toLocaleString("ru-RU", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
+              {visibleNotifications.map((notification) => (
+                <NotificationCard
+                  key={notification.id}
+                  notification={notification}
+                  markAsRead={markAsRead}
+                />
+              ))}
             </div>
           )}
         </section>
       </div>
     </main>
+  );
+}
+
+function NotificationSummaryCard({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: number;
+  tone?: "neutral" | "accent";
+}) {
+  return (
+    <div
+      className={`rounded-[22px] border p-4 shadow-sm ${
+        tone === "accent"
+          ? "border-[#7BC47F]/35 bg-[#F1FAF2]"
+          : "border-black/5 bg-white"
+      }`}
+    >
+      <div className="text-3xl font-black">{value}</div>
+      <div className="mt-1 text-xs font-bold uppercase text-[#8D8D8D]">{label}</div>
+    </div>
+  );
+}
+
+function NotificationCard({
+  notification,
+  markAsRead,
+}: {
+  notification: NotificationItem;
+  markAsRead: (id: string) => void;
+}) {
+  const meta = getNotificationMeta(notification.type);
+  const isUnread = !notification.is_read;
+
+  return (
+    <Link
+      href={notification.link || "/profile"}
+      onClick={() => markAsRead(notification.id)}
+      className={`block rounded-[22px] border p-4 transition hover:-translate-y-0.5 hover:shadow-md sm:p-5 ${
+        isUnread ? "border-[#7BC47F]/35 bg-[#F8FFF8]" : "border-black/5 bg-[#F7F7F5]"
+      }`}
+    >
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-black ${meta.className}`}
+        >
+          {meta.short}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-white px-2.5 py-1 text-xs font-extrabold text-[#6B6B6B] shadow-sm">
+              {meta.label}
+            </span>
+            {isUnread && (
+              <span className="rounded-full bg-[#7BC47F] px-2.5 py-1 text-xs font-extrabold text-white">
+                Новое
+              </span>
+            )}
+          </div>
+
+          <div className="mt-2 break-words text-base font-extrabold leading-snug sm:text-lg">
+            {notification.text || "Новое уведомление"}
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-[#8D8D8D]">
+            <span>
+              {new Date(notification.created_at).toLocaleString("ru-RU", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+            <span className="hidden sm:inline">·</span>
+            <span className="font-bold text-[#3F9E47]">Открыть</span>
+          </div>
+        </div>
+      </div>
+    </Link>
   );
 }
