@@ -811,6 +811,40 @@ calendarStartDay={1}
               </div>
             </div>
 
+            <div className="mt-5 rounded-[24px] border border-[#BDEBC1] bg-[#F5FFF6] p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-lg font-black text-[#3F9E47]">
+                  ✓
+                </div>
+                <div>
+                  <h2 className="text-lg font-black">Сделка защищена</h2>
+                  <p className="mt-1 text-xs font-bold leading-5 text-[#5F6F61]">
+                    SosedBeri хранит историю брони, акты передачи и возврата с фото,
+                    а спор по залогу можно передать администратору.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-2 text-xs font-bold text-[#5F6F61]">
+                <div className="rounded-2xl bg-white px-4 py-3">
+                  Залог возвращается после подтверждения возврата вещи.
+                </div>
+                <div className="rounded-2xl bg-white px-4 py-3">
+                  Фотоакты помогают зафиксировать состояние до и после аренды.
+                </div>
+                <div className="rounded-2xl bg-white px-4 py-3">
+                  При споре админ решает: вернуть залог, удержать частично или полностью.
+                </div>
+              </div>
+
+              <a
+                href="/safety"
+                className="mt-4 inline-flex text-sm font-black text-[#3F9E47] transition hover:text-[#2F8F3A]"
+              >
+                Подробнее о безопасности →
+              </a>
+            </div>
+
             <a
               href={`/chat/${item.id}?owner=${item.owner_id}`}
               className="mt-4 block w-full rounded-full border border-black/10 bg-white py-4 text-center text-base font-bold transition hover:bg-[#F7F7F5]"

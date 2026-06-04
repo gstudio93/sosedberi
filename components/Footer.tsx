@@ -18,6 +18,8 @@ const footerGroups = [
     links: [
       { href: "/add", label: "Сдать вещь" },
       { href: "/profile", label: "Мои объявления" },
+      { href: "/how-it-works", label: "Как это работает" },
+      { href: "/safety", label: "Безопасность" },
       { href: "/messages", label: "Сообщения" },
     ],
   },
@@ -105,13 +107,13 @@ export default function Footer() {
           <div>© {currentYear} SosedBeri</div>
 
           <div className="flex flex-wrap gap-x-6 gap-y-3">
-            <Link href="/" className="transition hover:text-[#111111]">
+            <Link href="/privacy" className="transition hover:text-[#111111]">
               Политика
             </Link>
-            <Link href="/" className="transition hover:text-[#111111]">
+            <Link href="/offer" className="transition hover:text-[#111111]">
               Оферта
             </Link>
-            <Link href="/" className="transition hover:text-[#111111]">
+            <Link href="/privacy" className="transition hover:text-[#111111]">
               Конфиденциальность
             </Link>
           </div>
