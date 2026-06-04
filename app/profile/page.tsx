@@ -289,7 +289,14 @@ export default function ProfilePage() {
     await createNotification(
       booking?.items?.owner_id,
       "payment",
-      `Оплата получена: ${booking?.items?.name || "бронь"}. Теперь можно подготовить акт передачи.`,
+      `Оплата получена: ${booking?.items?.name || "бронь"}. Аренда ${rentAmount.toLocaleString("ru-RU")} ₽, залог ${depositAmount.toLocaleString("ru-RU")} ₽. Подготовьте акт передачи.`,
+      "/profile"
+    );
+
+    await createNotification(
+      user.id,
+      "payment",
+      `Оплата зафиксирована: ${booking?.items?.name || "бронь"}. Итого ${paymentTotal.toLocaleString("ru-RU")} ₽, включая залог и комиссию.`,
       "/profile"
     );
   }
@@ -620,7 +627,7 @@ export default function ProfilePage() {
         createNotification(
           admin.id,
           "dispute",
-          `Новый спор по аренде: ${booking.items?.name || "вещь"}.`,
+          `Новый спор: ${booking.items?.name || "вещь"}. Нужно принять решение по залогу.`,
           "/admin"
         )
       )
@@ -1431,11 +1438,17 @@ function WalletPanel({
               const rentAmount = getBookingTotal(booking);
               const depositAmount = getBookingDeposit(booking);
               const commissionAmount = getBookingCommission(rentAmount);
+              const eventLabel = getWalletEventLabel(booking, isOwner);
 
               return (
                 <div key={`${booking.id}-${isOwner ? "owner" : "renter"}`} className="grid gap-3 p-4 text-sm lg:grid-cols-[1fr_180px_180px] lg:items-center">
                   <div className="min-w-0">
-                    <div className="font-extrabold">{booking.items?.name || "Бронь"}</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="font-extrabold">{booking.items?.name || "Бронь"}</div>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${eventLabel.className}`}>
+                        {eventLabel.text}
+                      </span>
+                    </div>
                     <div className="mt-1 text-[#6B6B6B]">
                       {isOwner ? "Доход от аренды" : "Оплата аренды"} ·{" "}
                       {booking.updated_at
@@ -1466,6 +1479,34 @@ function WalletPanel({
       </div>
     </div>
   );
+}
+
+function getWalletEventLabel(booking: any, isOwner: boolean) {
+  if (booking.status === "dispute") {
+    return {
+      text: "Спор по залогу",
+      className: "bg-red-50 text-red-600",
+    };
+  }
+
+  if (booking.status === "completed") {
+    return {
+      text: isOwner ? "Выплата доступна" : "Сделка завершена",
+      className: "bg-[#E8F7EA] text-[#3F9E47]",
+    };
+  }
+
+  if (isOwner) {
+    return {
+      text: "Ожидает выплаты",
+      className: "bg-yellow-100 text-yellow-700",
+    };
+  }
+
+  return {
+    text: "Оплата проведена",
+    className: "bg-[#F4F0E5] text-[#8A6A18]",
+  };
 }
 
 function WalletMetric({

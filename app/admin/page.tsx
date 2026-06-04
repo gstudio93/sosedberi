@@ -304,13 +304,19 @@ export default function AdminPage() {
 
     await supabase.from("bookings").update({ status: "completed" }).eq("id", report.booking_id);
     setDisputes((prev) => prev.map((item) => (item.id === report.id ? data : item)));
+    setBookings((prev) =>
+      prev.map((booking) =>
+        booking.id === report.booking_id ? { ...booking, status: "completed" } : booking
+      )
+    );
 
     const participants = [report.bookings?.renter_id, report.bookings?.items?.owner_id].filter(Boolean);
+    const withheldAmount = Math.max(0, deposit - refundAmount);
     await supabase.from("notifications").insert(
       participants.map((userId: string) => ({
         user_id: userId,
         type: "dispute",
-        text: `Решение по спору: ${resolutionLabels[resolution]}`,
+        text: `Решение по спору: ${resolutionLabels[resolution]}. Вернуть ${formatMoney(refundAmount)}, удержать ${formatMoney(withheldAmount)}.`,
         link: "/profile",
       }))
     );
