@@ -64,6 +64,8 @@ function AddItemContent() {
   const [images, setImages] = useState<string[]>([]);
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
+  const [equipment, setEquipment] = useState("");
+  const [handoverTerms, setHandoverTerms] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionsMessage, setSuggestionsMessage] = useState("");
@@ -136,6 +138,8 @@ function AddItemContent() {
     setImages(item.images?.length ? item.images : item.image ? [item.image] : []);
     setCategory(item.category || "");
     setDescription(item.description || "");
+    setEquipment(item.equipment || "");
+    setHandoverTerms(item.handover_terms || "");
     setLoadingItem(false);
   }
 
@@ -360,6 +364,8 @@ function AddItemContent() {
     const payload = {
       name: name.trim(),
       description: description.trim(),
+      equipment: equipment.trim(),
+      handover_terms: handoverTerms.trim(),
       price: priceNumber,
       deposit: depositNumber,
       location: location.trim(),
@@ -541,7 +547,7 @@ function AddItemContent() {
             <FormSectionHeader
               eyebrow="Шаг 2"
               title="Описание"
-              text="Напишите так, чтобы арендатор быстро понял состояние и комплектацию."
+              text="Напишите так, чтобы арендатор быстро понял состояние, комплект и условия передачи."
             />
 
             <div>
@@ -563,9 +569,35 @@ function AddItemContent() {
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Состояние, комплектация, условия передачи"
+                placeholder="Состояние вещи, особенности использования, для каких задач подходит"
                 className="min-h-[150px] w-full rounded-2xl bg-[#F7F7F5] px-5 py-4 text-lg outline-none transition focus:ring-2 focus:ring-[#7BC47F]"
               />
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-bold text-[#6B6B6B]">
+                  Комплектация
+                </label>
+                <textarea
+                  value={equipment}
+                  onChange={(e) => setEquipment(e.target.value)}
+                  placeholder="Например: перфоратор, кейс, бур 8 мм, ограничитель глубины"
+                  className="min-h-[130px] w-full rounded-2xl bg-[#F7F7F5] px-5 py-4 text-base outline-none transition focus:ring-2 focus:ring-[#7BC47F]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-bold text-[#6B6B6B]">
+                  Условия передачи
+                </label>
+                <textarea
+                  value={handoverTerms}
+                  onChange={(e) => setHandoverTerms(e.target.value)}
+                  placeholder="Где и когда удобно передать, нужен ли документ, как проверяете состояние"
+                  className="min-h-[130px] w-full rounded-2xl bg-[#F7F7F5] px-5 py-4 text-base outline-none transition focus:ring-2 focus:ring-[#7BC47F]"
+                />
+              </div>
             </div>
 
             <FormSectionHeader

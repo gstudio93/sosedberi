@@ -41,6 +41,8 @@ create table if not exists public.items (
   owner_id uuid not null references auth.users(id) on delete cascade,
   name text not null,
   description text,
+  equipment text,
+  handover_terms text,
   price numeric(12, 2) not null default 0,
   deposit numeric(12, 2) not null default 0,
   location text,
@@ -168,6 +170,8 @@ alter table public.profiles add column if not exists updated_at timestamptz not 
 alter table public.items add column if not exists owner_id uuid references auth.users(id) on delete cascade;
 alter table public.items add column if not exists name text;
 alter table public.items add column if not exists description text;
+alter table public.items add column if not exists equipment text;
+alter table public.items add column if not exists handover_terms text;
 alter table public.items add column if not exists price numeric(12, 2) not null default 0;
 alter table public.items add column if not exists deposit numeric(12, 2) not null default 0;
 alter table public.items add column if not exists location text;

@@ -323,6 +323,12 @@ const mapSrc = hasCoordinates
 const blockingBookings = bookings.filter((booking) =>
   BLOCKING_BOOKING_STATUSES.has(booking.status)
 );
+const equipmentText =
+  item.equipment?.trim() ||
+  "Владелец передает вещь в рабочем состоянии. Точный комплект можно уточнить в чате перед бронированием.";
+const handoverTermsText =
+  item.handover_terms?.trim() ||
+  "Передача проходит по адресу объявления. Стороны фиксируют состояние вещи при передаче и возврате.";
 
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-4 pb-44 pt-28 text-[#111111] sm:px-6 lg:pb-20 lg:pt-32">
@@ -481,6 +487,56 @@ const blockingBookings = bookings.filter((booking) =>
             <p className="mt-5 break-words text-base leading-relaxed text-[#555555] sm:text-lg">
               {item.description || "Описание не указано"}
             </p>
+          </div>
+
+          <div className="mt-6 rounded-[28px] border border-black/5 bg-white p-5 shadow-sm sm:p-6 lg:p-8">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold uppercase text-[#7BC47F]">
+                  Условия
+                </p>
+                <h2 className="mt-1 text-2xl font-black lg:text-3xl">
+                  Условия аренды
+                </h2>
+              </div>
+              {getDepositAmount() > 0 && (
+                <div className="rounded-2xl bg-[#F7F7F5] px-4 py-3 text-right">
+                  <div className="text-xs font-bold uppercase text-[#8D8D8D]">
+                    Залог
+                  </div>
+                  <div className="mt-1 text-xl font-black">
+                    {getDepositAmount().toLocaleString("ru-RU")} ₽
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <RentalConditionCard
+                icon="✓"
+                title="Комплектация"
+                text={equipmentText}
+              />
+              <RentalConditionCard
+                icon="↔"
+                title="Передача и возврат"
+                text={handoverTermsText}
+              />
+              <RentalConditionCard
+                icon="₽"
+                title="Оплата и залог"
+                text={
+                  getDepositAmount() > 0
+                    ? "После подтверждения брони арендатор оплачивает аренду. Залог возвращается после подтверждения возврата без спорных повреждений."
+                    : "После подтверждения брони арендатор оплачивает аренду. Для этого объявления залог не указан."
+                }
+              />
+              <RentalConditionCard
+                icon="!"
+                title="Если возникнет проблема"
+                text="При споре стороны прикладывают фото и комментарии, после чего администратор принимает решение по залогу."
+              />
+            </div>
           </div>
 
           <div className="mt-8 rounded-[28px] border border-black/5 bg-white p-5 shadow-sm sm:p-6 lg:mt-10 lg:rounded-[32px] lg:p-8">
@@ -990,6 +1046,32 @@ function EmptyItemBlock({ text }: { text: string }) {
       </div>
       <div className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-[#6B6B6B]">
         {text}
+      </div>
+    </div>
+  );
+}
+
+function RentalConditionCard({
+  icon,
+  title,
+  text,
+}: {
+  icon: string;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="rounded-[24px] bg-[#F7F7F5] p-5">
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sm font-black text-[#3F9E47]">
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-base font-black">{title}</h3>
+          <p className="mt-2 break-words text-sm font-bold leading-6 text-[#6B6B6B]">
+            {text}
+          </p>
+        </div>
       </div>
     </div>
   );
