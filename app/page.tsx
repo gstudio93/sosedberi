@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { YMaps, Map as YandexMap } from "@pbe/react-yandex-maps";
+import SafeImage from "@/components/SafeImage";
 import { CATEGORIES } from "@/lib/categories";
 import { getItemUrl } from "@/lib/item-url";
 import { supabase } from "../lib/supabase";
@@ -12,6 +13,7 @@ type Item = {
   owner_id?: string | null;
   name: string;
   price: number;
+  deposit?: number | string | null;
   location?: string | null;
   image?: string | null;
   owner_avatar?: string | null;
@@ -445,6 +447,10 @@ export default function HomePage() {
     };
   }
 
+  function getItemDeposit(item: Item) {
+    return Number(item.deposit || 0);
+  }
+
   return (
     <main className="min-h-screen bg-[#F7F7F5] text-[#111111]">
       {oauthError && (
@@ -629,17 +635,12 @@ export default function HomePage() {
             <a key={item.id} href={getItemUrl(item)} className="group block">
               <div className="relative overflow-hidden rounded-[18px] bg-white shadow-sm transition duration-300 group-hover:-translate-y-1 group-hover:shadow-xl sm:rounded-[22px]">
                 <div className="relative h-[150px] overflow-hidden bg-[#EFEFEB] sm:h-[235px]">
-                  {item.image ? (
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-4xl sm:text-5xl">
-                      📦
-                    </div>
-                  )}
+                  <SafeImage
+                    src={item.image}
+                    alt={item.name}
+                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                    fallbackLabel="Фото товара"
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent" />
                   <button
                     type="button"
@@ -667,10 +668,12 @@ export default function HomePage() {
                     )}
                   </div>
                   {item.owner_profile?.avatar || item.owner_avatar ? (
-                    <img
+                    <SafeImage
                       src={item.owner_profile?.avatar || item.owner_avatar || ""}
                       className="absolute bottom-2 right-2 h-9 w-9 rounded-full border-2 border-white bg-[#7BC47F] object-cover sm:bottom-3 sm:right-4 sm:h-12 sm:w-12 sm:border-[3px]"
                       alt="Владелец"
+                      fallbackClassName="absolute bottom-2 right-2 h-9 w-9 rounded-full border-2 border-white bg-[#7BC47F] text-white sm:bottom-3 sm:right-4 sm:h-12 sm:w-12 sm:border-[3px]"
+                      fallbackLabel={getOwnerInitial(item)}
                     />
                   ) : (
                     <div className="absolute bottom-2 right-2 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-[#7BC47F] text-sm font-black text-white sm:bottom-3 sm:right-4 sm:h-12 sm:w-12 sm:border-[3px] sm:text-lg">
@@ -681,6 +684,18 @@ export default function HomePage() {
 
                 <div className="p-3 sm:flex sm:items-start sm:justify-between sm:gap-4 sm:p-4">
                   <div className="min-w-0">
+                    <div className="mb-2 flex flex-wrap gap-1.5">
+                      {item.category && (
+                        <span className="rounded-full bg-[#F1FAF2] px-2 py-1 text-[10px] font-black text-[#3F9E47]">
+                          {item.category}
+                        </span>
+                      )}
+                      {getItemDeposit(item) > 0 && (
+                        <span className="rounded-full bg-[#F7F7F5] px-2 py-1 text-[10px] font-black text-[#6B6B6B]">
+                          Залог {getItemDeposit(item).toLocaleString("ru-RU")} ₽
+                        </span>
+                      )}
+                    </div>
                     <h3 className="line-clamp-1 text-sm font-black sm:text-lg">
                       {item.name}
                     </h3>

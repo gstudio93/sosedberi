@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import SafeImage from "@/components/SafeImage";
 import { supabase } from "@/lib/supabase";
 import { getItemUrl } from "@/lib/item-url";
 
@@ -1057,10 +1058,11 @@ function CatalogCard({
     <article className="group overflow-hidden rounded-[20px] border border-black/5 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg sm:rounded-[24px]">
       <Link href={getItemUrl(item)} className="block">
         <div className="relative aspect-[1.16/1] overflow-hidden bg-[#EFEFEB] sm:aspect-[4/3]">
-          <img
+          <SafeImage
             src={item.image || "/hero.jpg"}
             alt={item.name}
             className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+            fallbackLabel="Фото товара"
           />
           <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/55 to-transparent" />
 
@@ -1091,10 +1093,12 @@ function CatalogCard({
 
           <div className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-[#7BC47F] text-xs font-black text-white sm:bottom-3 sm:right-3 sm:h-11 sm:w-11 sm:text-base">
             {item.owner_profile?.avatar ? (
-              <img
+              <SafeImage
                 src={item.owner_profile.avatar}
                 alt=""
                 className="h-full w-full object-cover"
+                fallbackClassName="h-full w-full bg-[#7BC47F] text-white"
+                fallbackLabel={initial}
               />
             ) : (
               initial

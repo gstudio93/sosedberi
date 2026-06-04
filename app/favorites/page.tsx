@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import SafeImage from "@/components/SafeImage";
 import { getItemUrl } from "@/lib/item-url";
 import { supabase } from "../../lib/supabase";
 
@@ -150,10 +151,11 @@ export default function FavoritesPage() {
                   >
                     <Link href={getItemUrl(item)} className="block">
                       <div className="relative aspect-[4/3] overflow-hidden bg-white">
-                        <img
+                        <SafeImage
                           src={item.image || "/hero.jpg"}
                           alt={item.name}
                           className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                          fallbackLabel="Фото товара"
                         />
 
                         <button
@@ -188,10 +190,12 @@ export default function FavoritesPage() {
                           </div>
 
                           {item.owner_avatar && (
-                            <img
+                            <SafeImage
                               src={item.owner_avatar}
                               alt=""
                               className="h-10 w-10 shrink-0 rounded-full border-2 border-white object-cover"
+                              fallbackClassName="h-10 w-10 shrink-0 rounded-full border-2 border-white bg-[#7BC47F] text-white"
+                              fallbackLabel={(item.name || "S").slice(0, 1).toUpperCase()}
                             />
                           )}
                         </div>
