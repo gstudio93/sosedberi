@@ -1928,11 +1928,12 @@ function ReportSummary({
 
 function MiniItemCard({ item }: { item: any }) {
   const moderation = getItemModerationLabel(item);
+  const publication = getItemPublicationLabel(item);
 
   return (
     <Link
       href={getItemUrl(item)}
-      className="grid min-h-[150px] grid-cols-[120px_1fr] overflow-hidden rounded-[20px] border border-black/5 bg-white transition hover:shadow-md"
+      className="grid min-h-[150px] grid-cols-[110px_1fr] overflow-hidden rounded-[20px] border border-black/5 bg-white transition hover:shadow-md sm:grid-cols-[120px_1fr]"
     >
       <img
         src={item.image || "/hero.jpg"}
@@ -1941,10 +1942,17 @@ function MiniItemCard({ item }: { item: any }) {
       />
       <div className="p-4">
         <h3 className="line-clamp-2 text-sm font-extrabold">{item.name}</h3>
-        <div className="mt-2 text-base font-extrabold">{item.price} ₽</div>
+        <div className="mt-2 text-base font-extrabold">
+          {Number(item.price || 0).toLocaleString("ru-RU")} ₽
+        </div>
         <div className="text-xs text-[#6B6B6B]">/ день</div>
-        <div className={`mt-3 text-xs font-bold ${moderation.className}`}>
-          {moderation.label}
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${publication.badgeClassName}`}>
+            {publication.label}
+          </span>
+          <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${moderation.badgeClassName}`}>
+            {moderation.label}
+          </span>
         </div>
       </div>
     </Link>
@@ -1961,32 +1969,42 @@ function OwnerItemCard({
   deleteItem: (id: string) => void;
 }) {
   const moderation = getItemModerationLabel(item);
+  const publication = getItemPublicationLabel(item);
+  const nextAction = getItemNextActionLabel(item);
 
   return (
-    <div className="overflow-hidden rounded-[22px] border border-black/5 bg-[#F7F7F5] transition hover:shadow-md">
-      {item.image && (
-        <img src={item.image} alt="" className="h-40 w-full object-cover" />
-      )}
+    <div className="overflow-hidden rounded-[22px] border border-black/5 bg-white transition hover:shadow-md">
+      <div className="relative h-44 overflow-hidden bg-[#F7F7F5]">
+        <img
+          src={item.image || "/hero.jpg"}
+          alt=""
+          className="h-full w-full object-cover"
+        />
+        <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+          <span className={`rounded-full px-3 py-1 text-xs font-bold shadow-sm ${publication.badgeClassName}`}>
+            {publication.label}
+          </span>
+          <span className={`rounded-full px-3 py-1 text-xs font-bold shadow-sm ${moderation.badgeClassName}`}>
+            {moderation.label}
+          </span>
+        </div>
+      </div>
 
       <div className="p-4">
-        <h3 className="line-clamp-1 text-base font-extrabold">{item.name}</h3>
-        <div className="mt-2 flex items-center gap-2">
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-bold ${
-              item.status === "paused"
-                ? "bg-yellow-100 text-yellow-700"
-                : "bg-[#E8F7EA] text-[#3F9E47]"
-            }`}
-          >
-            {item.status === "paused" ? "На паузе" : "Активно"}
-          </span>
+        <h3 className="line-clamp-2 min-h-[44px] text-base font-extrabold leading-tight">{item.name}</h3>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#6B6B6B]">
             {item.views || 0} просмотров
           </span>
+          {Number(item.deposit || 0) > 0 && (
+            <span className="rounded-full bg-[#F7F7F5] px-3 py-1 text-xs font-bold text-[#6B6B6B]">
+              Залог {Number(item.deposit || 0).toLocaleString("ru-RU")} ₽
+            </span>
+          )}
         </div>
 
-        <div className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-bold ${moderation.badgeClassName}`}>
-          {moderation.label}
+        <div className={`mt-3 rounded-2xl px-4 py-3 text-xs font-bold leading-relaxed ${nextAction.className}`}>
+          {nextAction.text}
         </div>
 
         {item.moderation_status === "rejected" && item.moderation_comment && (
@@ -2000,27 +2018,29 @@ function OwnerItemCard({
           {item.location}
         </p>
 
-        <div className="mt-4 text-xl font-extrabold">{item.price} ₽</div>
+        <div className="mt-4 text-xl font-extrabold">
+          {Number(item.price || 0).toLocaleString("ru-RU")} ₽
+        </div>
         <div className="text-xs uppercase text-[#8D8D8D]">/ день</div>
 
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-5 grid grid-cols-2 gap-2">
           <Link
             href={getItemUrl(item)}
-            className="min-w-[120px] flex-1 rounded-full bg-white px-4 py-3 text-center text-sm font-bold"
+            className="rounded-full bg-[#111111] px-4 py-3 text-center text-sm font-bold text-white"
           >
             Открыть
           </Link>
           <Link
             href={`/add?edit=${item.id}`}
-            className="rounded-full bg-white px-4 py-3 text-sm font-bold"
+            className="rounded-full bg-[#F7F7F5] px-4 py-3 text-center text-sm font-bold"
           >
-            Изм.
+            Редактировать
           </Link>
           <button
             onClick={() => toggleItemStatus(item.id, item.status)}
-            className="rounded-full bg-white px-4 py-3 text-sm font-bold"
+            className="rounded-full bg-[#F7F7F5] px-4 py-3 text-sm font-bold"
           >
-            {item.status === "paused" ? "Вкл." : "Пауза"}
+            {item.status === "paused" ? "Вернуть" : "Снять"}
           </button>
           <button
             onClick={() => deleteItem(item.id)}
@@ -2055,5 +2075,54 @@ function getItemModerationLabel(item: any) {
     label: "На проверке",
     className: "text-yellow-700",
     badgeClassName: "bg-yellow-100 text-yellow-700",
+  };
+}
+
+function getItemPublicationLabel(item: any) {
+  if (item.status === "paused") {
+    return {
+      label: "Снято с публикации",
+      badgeClassName: "bg-yellow-100 text-yellow-700",
+    };
+  }
+
+  if (item.status === "deleted") {
+    return {
+      label: "Удалено",
+      badgeClassName: "bg-[#F1F1EE] text-[#6B6B6B]",
+    };
+  }
+
+  return {
+    label: "Опубликовано",
+    badgeClassName: "bg-[#E8F7EA] text-[#3F9E47]",
+  };
+}
+
+function getItemNextActionLabel(item: any) {
+  if (item.moderation_status === "rejected") {
+    return {
+      text: "Объявление заблокировано. Исправьте причину из комментария администратора и сохраните изменения.",
+      className: "bg-red-50 text-red-700",
+    };
+  }
+
+  if (item.moderation_status === "pending") {
+    return {
+      text: "Объявление опубликовано, но ожидает проверки администратором.",
+      className: "bg-yellow-50 text-yellow-700",
+    };
+  }
+
+  if (item.status === "paused") {
+    return {
+      text: "Объявление скрыто из каталога. Можно вернуть его в публикацию.",
+      className: "bg-[#F7F7F5] text-[#6B6B6B]",
+    };
+  }
+
+  return {
+    text: "Объявление активно. Следите за входящими заявками и отвечайте в чатах.",
+    className: "bg-[#F1FAF2] text-[#2F9A44]",
   };
 }
