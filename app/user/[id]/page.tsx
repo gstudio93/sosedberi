@@ -148,6 +148,16 @@ export default function UserPage() {
 
   const avatarLetter = displayName[0]?.toUpperCase() || "П";
   const primaryItem = items[0];
+  const trustItems = [
+    { label: "Профиль", done: Boolean(profile?.verified) },
+    { label: "Телефон", done: Boolean(profile?.phone_verified) },
+    { label: "Отзывы", done: reviews.length + renterReviews.length > 0 },
+    { label: "Завершенные аренды", done: completedRentals > 0 },
+    { label: "Активные объявления", done: items.length > 0 },
+  ];
+  const trustScore = Math.round(
+    (trustItems.filter((item) => item.done).length / trustItems.length) * 100
+  );
 
   if (loading) {
     return (
@@ -243,6 +253,49 @@ export default function UserPage() {
             <Metric label="Отзывы" value={reviews.length} />
             <Metric label="Рейтинг" value={avgRating.toFixed(1)} />
             <Metric label="Рейтинг арендатора" value={renterRating.toFixed(1)} />
+          </div>
+        </section>
+
+        <section className="mt-6 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm lg:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold uppercase text-[#7BC47F]">Доверие</p>
+                <h2 className="mt-1 text-2xl font-extrabold">Профиль доверия</h2>
+              </div>
+              <div className="rounded-2xl bg-[#F1FAF2] px-4 py-3 text-right">
+                <div className="text-2xl font-black text-[#3F9E47]">{trustScore}%</div>
+                <div className="text-xs font-bold text-[#6B6B6B]">заполнено</div>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              {trustItems.map((item) => (
+                <div
+                  key={item.label}
+                  className="flex items-center gap-3 rounded-2xl bg-[#F7F7F5] px-4 py-3 text-sm font-bold"
+                >
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs ${
+                      item.done ? "bg-[#7BC47F] text-white" : "bg-white text-[#8D8D8D]"
+                    }`}
+                  >
+                    {item.done ? "✓" : "·"}
+                  </span>
+                  {item.label}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm lg:p-6">
+            <p className="text-sm font-bold uppercase text-[#7BC47F]">Активность</p>
+            <h2 className="mt-1 text-2xl font-extrabold">Что видно по профилю</h2>
+            <div className="mt-5 space-y-3">
+              <TrustFact label="Как владелец" value={`${items.length} объявлений · ${completedRentals} завершенных аренд`} />
+              <TrustFact label="Отзывы о вещах" value={`${reviews.length} отзывов · ${avgRating.toFixed(1)} из 5`} />
+              <TrustFact label="Как арендатор" value={`${renterReviews.length} оценок · ${renterRating.toFixed(1)} из 5`} />
+            </div>
           </div>
         </section>
 
@@ -392,6 +445,15 @@ export default function UserPage() {
               <InfoCard label="Проверка" value={profile?.verified ? "Профиль проверен" : "Базовый профиль"} />
               <InfoCard label="Связь" value="Через чат SosedBeri" />
             </div>
+
+            <div className="mt-6 rounded-[24px] bg-[#F7F7F5] p-5">
+              <h3 className="text-xl font-extrabold">Как безопасно арендовать</h3>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <TrustStep title="1. Проверьте объявление" text="Смотрите фото, условия передачи, залог и отзывы по вещи." />
+                <TrustStep title="2. Общайтесь в чате" text="Уточните комплект, место передачи и состояние перед бронью." />
+                <TrustStep title="3. Фиксируйте передачу" text="Используйте акт с фото при передаче и возврате вещи." />
+              </div>
+            </div>
           </section>
         )}
       </div>
@@ -424,6 +486,24 @@ function Metric({ label, value }: { label: string; value: string | number }) {
     <div className="border-black/5 p-5 md:border-r last:border-r-0">
       <div className="text-2xl font-extrabold">{value}</div>
       <div className="mt-1 text-sm text-[#6B6B6B]">{label}</div>
+    </div>
+  );
+}
+
+function TrustFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-[#F7F7F5] px-4 py-3">
+      <div className="text-xs font-bold uppercase text-[#8D8D8D]">{label}</div>
+      <div className="mt-1 text-sm font-extrabold">{value}</div>
+    </div>
+  );
+}
+
+function TrustStep({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-2xl bg-white p-4">
+      <div className="text-sm font-black">{title}</div>
+      <p className="mt-2 text-sm leading-6 text-[#6B6B6B]">{text}</p>
     </div>
   );
 }
