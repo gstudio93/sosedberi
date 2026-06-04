@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
 function parseChatLink(link?: string | null) {
@@ -27,6 +28,8 @@ export default function MessagesPage() {
   const [user, setUser] = useState<any>(null);
   const [conversations, setConversations] =
     useState<any[]>([]);
+  const [profilesById, setProfilesById] = useState<Record<string, any>>({});
+  const [activeFilter, setActiveFilter] = useState<"all" | "unread" | "booking">("all");
 
   useEffect(() => {
     loadData();
@@ -63,7 +66,12 @@ export default function MessagesPage() {
 
     const currentUser = data.user;
 
-    if (!currentUser) return;
+    if (!currentUser) {
+      setUser(null);
+      setConversations([]);
+      setProfilesById({});
+      return;
+    }
 
     setUser(currentUser);
 
@@ -246,35 +254,186 @@ export default function MessagesPage() {
         );
       });
 
-    setConversations(sorted);
+    const itemIds = Array.from(
+      new Set(sorted.map((conv) => conv.item_id).filter(Boolean))
+    );
+
+    let bookings: any[] = [];
+
+    if (itemIds.length > 0) {
+      const { data: bookingRows } = await supabase
+        .from("bookings")
+        .select(`
+          id,
+          item_id,
+          renter_id,
+          status,
+          items (owner_id)
+        `)
+        .in("item_id", itemIds);
+
+      bookings = bookingRows || [];
+    }
+
+    const withBookings = sorted.map((conv) => {
+      const peerId =
+        conv.user1_id === currentUser.id ? conv.user2_id : conv.user1_id;
+
+      const relatedBooking = bookings.find((booking) => {
+        const ownerId = booking.items?.owner_id || conv.items?.owner_id;
+        return (
+          booking.item_id === conv.item_id &&
+          ((booking.renter_id === currentUser.id && ownerId === peerId) ||
+            (booking.renter_id === peerId && ownerId === currentUser.id))
+        );
+      });
+
+      return {
+        ...conv,
+        booking: relatedBooking || null,
+      };
+    });
+
+    const peerIds = Array.from(
+      new Set(
+        withBookings
+          .map((conv) =>
+            conv.user1_id === currentUser.id ? conv.user2_id : conv.user1_id
+          )
+          .filter(Boolean)
+      )
+    );
+
+    if (peerIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, username, full_name, avatar, verified")
+        .in("id", peerIds);
+
+      const nextProfiles = (profiles || []).reduce(
+        (acc: Record<string, any>, profile: any) => {
+          acc[profile.id] = profile;
+          return acc;
+        },
+        {}
+      );
+
+      setProfilesById(nextProfiles);
+    } else {
+      setProfilesById({});
+    }
+
+    setConversations(withBookings);
   }
+
+  const unreadCount = useMemo(
+    () =>
+      conversations.reduce(
+        (total, conv) =>
+          total +
+          (conv.messages?.filter(
+            (msg: any) => msg.receiver_id === user?.id && msg.is_read === false
+          ).length || 0),
+        0
+      ),
+    [conversations, user?.id]
+  );
+
+  const bookingCount = useMemo(
+    () => conversations.filter((conv) => conv.booking).length,
+    [conversations]
+  );
+
+  const visibleConversations = useMemo(() => {
+    if (activeFilter === "unread") {
+      return conversations.filter((conv) =>
+        conv.messages?.some(
+          (msg: any) => msg.receiver_id === user?.id && msg.is_read === false
+        )
+      );
+    }
+
+    if (activeFilter === "booking") {
+      return conversations.filter((conv) => conv.booking);
+    }
+
+    return conversations;
+  }, [activeFilter, conversations, user?.id]);
 
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-6 pb-24 pt-32 text-[#111111]">
 
       <div className="mx-auto max-w-5xl">
 
-        {/* HEADER */}
-        <div className="mb-10">
-          <h1 className="text-5xl font-black">
+        <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+          <h1 className="text-4xl font-black sm:text-5xl">
             Сообщения
           </h1>
 
-          <p className="mt-3 text-lg text-[#6B6B6B]">
+          <p className="mt-3 text-base text-[#6B6B6B] sm:text-lg">
             Все ваши диалоги
           </p>
+          </div>
+
+          {user && (
+            <div className="flex rounded-full bg-white p-1 shadow-sm">
+              {[
+                { id: "all", label: "Все", count: conversations.length },
+                { id: "unread", label: "Новые", count: unreadCount },
+                { id: "booking", label: "Брони", count: bookingCount },
+              ].map((filter) => (
+                <button
+                  key={filter.id}
+                  type="button"
+                  onClick={() => setActiveFilter(filter.id as "all" | "unread" | "booking")}
+                  className={`rounded-full px-4 py-2 text-sm font-black transition ${
+                    activeFilter === filter.id
+                      ? "bg-[#111111] text-white"
+                      : "text-[#6B6B6B] hover:bg-[#F7F7F5]"
+                  }`}
+                >
+                  {filter.label}
+                  {filter.count > 0 && (
+                    <span className="ml-2 text-xs opacity-70">{filter.count}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* LIST */}
         <div className="overflow-hidden rounded-[32px] border border-black/5 bg-white shadow-sm">
 
-          {conversations.length === 0 && (
-            <div className="p-10 text-center text-[#6B6B6B]">
-              Пока нет сообщений
+          {!user && (
+            <div className="p-8 text-center sm:p-12">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#E8F7EA] text-2xl">
+                💬
+              </div>
+              <h2 className="mt-5 text-2xl font-black">Войдите, чтобы увидеть чаты</h2>
+              <p className="mx-auto mt-2 max-w-md text-[#6B6B6B]">
+                Диалоги доступны после авторизации. Так сообщения привязаны к вашему профилю и бронированиям.
+              </p>
+              <div className="mt-6 flex justify-center gap-3">
+                <Link href="/login" className="rounded-full bg-[#7BC47F] px-6 py-3 font-black text-white">
+                  Войти
+                </Link>
+                <Link href="/login?mode=register" className="rounded-full border border-black/10 px-6 py-3 font-black">
+                  Регистрация
+                </Link>
+              </div>
             </div>
           )}
 
-          {conversations.map((conv) => {
+          {user && visibleConversations.length === 0 && (
+            <div className="p-10 text-center text-[#6B6B6B]">
+              {conversations.length === 0
+                ? "Пока нет сообщений"
+                : "По этому фильтру пока ничего нет"}
+            </div>
+          )}
+
+          {user && visibleConversations.map((conv) => {
             const unread =
               conv.messages?.filter(
                 (msg: any) =>
@@ -287,6 +446,11 @@ export default function MessagesPage() {
               conv.messages?.[
                 conv.messages.length - 1
               ];
+            const peerId =
+              conv.user1_id === user?.id ? conv.user2_id : conv.user1_id;
+            const peerProfile = profilesById[peerId];
+            const peerName =
+              peerProfile?.full_name || peerProfile?.username || "Пользователь";
 
             return (
               <a
@@ -299,7 +463,7 @@ export default function MessagesPage() {
                       : conv.user1_id
                   }`
                 }
-                className="flex items-center gap-5 border-b border-black/5 p-5 transition hover:bg-[#F7F7F5]"
+                className="flex items-center gap-4 border-b border-black/5 p-4 transition hover:bg-[#F7F7F5] sm:gap-5 sm:p-5"
               >
 
                 {/* IMAGE */}
@@ -335,9 +499,15 @@ export default function MessagesPage() {
 
                   </div>
 
-                  <div className="mt-2 text-sm text-[#6B6B6B]">
-                    {conv.items?.price || 0} ₽
-                    / день
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[#6B6B6B]">
+                    <span>{peerName}</span>
+                    <span>·</span>
+                    <span>{conv.items?.price || 0} ₽ / день</span>
+                    {conv.booking && (
+                      <span className="rounded-full bg-[#FFF3C4] px-2 py-1 text-xs font-bold text-[#9A6A00]">
+                        Бронь
+                      </span>
+                    )}
                   </div>
 
                   <div className="mt-3 truncate text-[#555555]">
