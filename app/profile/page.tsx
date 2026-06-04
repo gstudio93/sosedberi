@@ -8,6 +8,8 @@ import { supabase } from "../../lib/supabase";
 
 type Tab = "overview" | "items" | "bookings" | "messages" | "favorites" | "wallet" | "reviews" | "settings";
 
+const SERVICE_COMMISSION_RATE = 0.1;
+
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
   const [username, setUsername] = useState("");
@@ -240,8 +242,21 @@ export default function ProfilePage() {
 
   async function handlePayment(bookingId: string) {
     const booking = myBookings.find((item) => item.id === bookingId);
+    const rentAmount = booking ? getBookingTotal(booking) : 0;
+    const depositAmount = booking ? getBookingDeposit(booking) : 0;
+    const commissionAmount = getBookingCommission(rentAmount);
+    const paymentTotal = rentAmount + depositAmount + commissionAmount;
     const confirmed = window.confirm(
-      "Это тестовая оплата для MVP. Деньги пока не списываются. Отметить бронь как оплаченную?"
+      [
+        "Это тестовая оплата для MVP. Деньги пока не списываются.",
+        "",
+        `Аренда: ${rentAmount.toLocaleString("ru-RU")} ₽`,
+        `Залог: ${depositAmount.toLocaleString("ru-RU")} ₽`,
+        `Комиссия сервиса: ${commissionAmount.toLocaleString("ru-RU")} ₽`,
+        `Итого к оплате: ${paymentTotal.toLocaleString("ru-RU")} ₽`,
+        "",
+        "Отметить бронь как оплаченную?",
+      ].join("\n")
     );
 
     if (!confirmed) return;
@@ -697,10 +712,32 @@ export default function ProfilePage() {
   }
 
   function getBookingTotal(booking: any) {
+    if (booking.total_price) return Number(booking.total_price) || 0;
+
     const days = getBookingDays(booking);
     const price = Number(booking.items?.price) || 0;
 
     return days * price;
+  }
+
+  function getBookingDeposit(booking: any) {
+    return Number(booking.deposit_amount || booking.items?.deposit || 0);
+  }
+
+  function getBookingCommission(rentAmount: number) {
+    return Math.round(rentAmount * SERVICE_COMMISSION_RATE);
+  }
+
+  function getBookingPaymentTotal(booking: any) {
+    const rentAmount = getBookingTotal(booking);
+
+    return rentAmount + getBookingDeposit(booking) + getBookingCommission(rentAmount);
+  }
+
+  function getOwnerPayout(booking: any) {
+    const rentAmount = getBookingTotal(booking);
+
+    return Math.max(0, rentAmount - getBookingCommission(rentAmount));
   }
 
   function formatDateRange(booking: any) {
@@ -746,6 +783,34 @@ export default function ProfilePage() {
         .reduce((sum, booking) => sum + getBookingTotal(booking), 0),
     [incomingBookings]
   );
+  const walletStats = useMemo(() => {
+    const paidIncoming = incomingBookings.filter((booking) => booking.payment_status === "paid");
+    const completedIncoming = paidIncoming.filter((booking) => booking.status === "completed");
+    const activeIncoming = paidIncoming.filter((booking) => !["completed", "cancelled", "rejected"].includes(booking.status));
+    const paidOutgoing = myBookings.filter((booking) => booking.payment_status === "paid");
+
+    return {
+      earnedGross: paidIncoming.reduce((sum, booking) => sum + getBookingTotal(booking), 0),
+      ownerPayout: completedIncoming.reduce((sum, booking) => sum + getOwnerPayout(booking), 0),
+      pendingPayout: activeIncoming.reduce((sum, booking) => sum + getOwnerPayout(booking), 0),
+      serviceCommission: paidIncoming.reduce(
+        (sum, booking) => sum + getBookingCommission(getBookingTotal(booking)),
+        0
+      ),
+      depositsHeld: [...paidIncoming, ...paidOutgoing].reduce(
+        (sum, booking) => sum + getBookingDeposit(booking),
+        0
+      ),
+      renterSpend: paidOutgoing.reduce((sum, booking) => sum + getBookingPaymentTotal(booking), 0),
+      transactions: [...paidIncoming, ...paidOutgoing]
+        .filter((booking) => booking.payment_status === "paid")
+        .sort(
+          (a, b) =>
+            new Date(b.updated_at || b.created_at).getTime() -
+            new Date(a.updated_at || a.created_at).getTime()
+        ),
+    };
+  }, [incomingBookings, myBookings]);
 
   if (!user) {
     return (
@@ -870,6 +935,9 @@ export default function ProfilePage() {
                 <PaymentReminder
                   bookings={unpaidApprovedBookings}
                   getBookingTotal={getBookingTotal}
+                  getBookingDeposit={getBookingDeposit}
+                  getBookingCommission={getBookingCommission}
+                  getBookingPaymentTotal={getBookingPaymentTotal}
                   formatDateRange={formatDateRange}
                   handlePayment={handlePayment}
                   openBookings={() => setActiveTab("bookings")}
@@ -895,6 +963,9 @@ export default function ProfilePage() {
                         renterProfile={bookingProfiles[booking.renter_id]}
                         getBookingDays={getBookingDays}
                         getBookingTotal={getBookingTotal}
+                        getBookingDeposit={getBookingDeposit}
+                        getBookingCommission={getBookingCommission}
+                        getBookingPaymentTotal={getBookingPaymentTotal}
                         formatDateRange={formatDateRange}
                         updateBookingStatus={updateBookingStatus}
                         handoverReport={getRentalReport(handoverReports, booking.id, "handover")}
@@ -978,6 +1049,9 @@ export default function ProfilePage() {
                         ownerProfile={bookingProfiles[booking.items?.owner_id]}
                         getBookingDays={getBookingDays}
                         getBookingTotal={getBookingTotal}
+                        getBookingDeposit={getBookingDeposit}
+                        getBookingCommission={getBookingCommission}
+                        getBookingPaymentTotal={getBookingPaymentTotal}
                         formatDateRange={formatDateRange}
                         handlePayment={handlePayment}
                         updateMyBooking={updateMyBooking}
@@ -1010,6 +1084,9 @@ export default function ProfilePage() {
                         renterProfile={bookingProfiles[booking.renter_id]}
                         getBookingDays={getBookingDays}
                         getBookingTotal={getBookingTotal}
+                        getBookingDeposit={getBookingDeposit}
+                        getBookingCommission={getBookingCommission}
+                        getBookingPaymentTotal={getBookingPaymentTotal}
                         formatDateRange={formatDateRange}
                         updateBookingStatus={updateBookingStatus}
                         handoverReport={getRentalReport(handoverReports, booking.id, "handover")}
@@ -1133,9 +1210,14 @@ export default function ProfilePage() {
 
           {activeTab === "wallet" && (
             <DashboardSection title="Кошелек">
-              <ProfileShortcut
-                title="Платежи готовятся к подключению"
-                text="Сейчас оплата работает в тестовом режиме. Позже здесь появятся баланс, выплаты, комиссия и история операций."
+              <WalletPanel
+                stats={walletStats}
+                getBookingTotal={getBookingTotal}
+                getBookingDeposit={getBookingDeposit}
+                getBookingCommission={getBookingCommission}
+                getBookingPaymentTotal={getBookingPaymentTotal}
+                getOwnerPayout={getOwnerPayout}
+                currentUserId={user.id}
               />
             </DashboardSection>
           )}
@@ -1206,17 +1288,27 @@ function ProfileHeader({
 function PaymentReminder({
   bookings,
   getBookingTotal,
+  getBookingDeposit,
+  getBookingCommission,
+  getBookingPaymentTotal,
   formatDateRange,
   handlePayment,
   openBookings,
 }: {
   bookings: any[];
   getBookingTotal: (booking: any) => number;
+  getBookingDeposit: (booking: any) => number;
+  getBookingCommission: (rentAmount: number) => number;
+  getBookingPaymentTotal: (booking: any) => number;
   formatDateRange: (booking: any) => string;
   handlePayment: (bookingId: string) => void;
   openBookings: () => void;
 }) {
   const firstBooking = bookings[0];
+  const rentAmount = firstBooking ? getBookingTotal(firstBooking) : 0;
+  const depositAmount = firstBooking ? getBookingDeposit(firstBooking) : 0;
+  const commissionAmount = getBookingCommission(rentAmount);
+  const paymentTotal = firstBooking ? getBookingPaymentTotal(firstBooking) : 0;
 
   return (
     <section className="mb-5 rounded-[28px] border border-[#BDEBC1] bg-[#F5FFF6] p-5 shadow-sm">
@@ -1236,7 +1328,18 @@ function PaymentReminder({
               {formatDateRange(firstBooking)}
             </span>
             <span className="rounded-full bg-white px-3 py-1 font-bold">
-              {getBookingTotal(firstBooking).toLocaleString("ru-RU")} ₽
+              Аренда {rentAmount.toLocaleString("ru-RU")} ₽
+            </span>
+            {depositAmount > 0 && (
+              <span className="rounded-full bg-white px-3 py-1 font-bold">
+                Залог {depositAmount.toLocaleString("ru-RU")} ₽
+              </span>
+            )}
+            <span className="rounded-full bg-white px-3 py-1 font-bold">
+              Комиссия {commissionAmount.toLocaleString("ru-RU")} ₽
+            </span>
+            <span className="rounded-full bg-[#111111] px-3 py-1 font-bold text-white">
+              Итого {paymentTotal.toLocaleString("ru-RU")} ₽
             </span>
             {bookings.length > 1 && (
               <button
@@ -1257,6 +1360,133 @@ function PaymentReminder({
         </button>
       </div>
     </section>
+  );
+}
+
+function WalletPanel({
+  stats,
+  getBookingTotal,
+  getBookingDeposit,
+  getBookingCommission,
+  getBookingPaymentTotal,
+  getOwnerPayout,
+  currentUserId,
+}: {
+  stats: {
+    earnedGross: number;
+    ownerPayout: number;
+    pendingPayout: number;
+    serviceCommission: number;
+    depositsHeld: number;
+    renterSpend: number;
+    transactions: any[];
+  };
+  getBookingTotal: (booking: any) => number;
+  getBookingDeposit: (booking: any) => number;
+  getBookingCommission: (rentAmount: number) => number;
+  getBookingPaymentTotal: (booking: any) => number;
+  getOwnerPayout: (booking: any) => number;
+  currentUserId: string;
+}) {
+  return (
+    <div className="space-y-5">
+      <div className="rounded-[24px] bg-[#F7F7F5] p-5">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div>
+            <h3 className="text-2xl font-extrabold">Тестовый финансовый контур</h3>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6B6B6B]">
+              Платежи пока не списывают реальные деньги, но расчеты уже показывают аренду, залог,
+              комиссию сервиса и будущие выплаты владельцу.
+            </p>
+          </div>
+          <div className="w-fit rounded-full bg-[#111111] px-4 py-2 text-sm font-extrabold text-white">
+            Комиссия {(SERVICE_COMMISSION_RATE * 100).toFixed(0)}%
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <WalletMetric label="К выплате владельцу" value={stats.ownerPayout} caption="По завершенным арендам" tone="green" />
+        <WalletMetric label="Ожидает выплаты" value={stats.pendingPayout} caption="Активные оплаченные аренды" />
+        <WalletMetric label="Залогов под контролем" value={stats.depositsHeld} caption="Будет возвращено или удержано по спору" />
+        <WalletMetric label="Валовая аренда" value={stats.earnedGross} caption="Оплаченные брони ваших вещей" />
+        <WalletMetric label="Комиссия сервиса" value={stats.serviceCommission} caption="Расчетная комиссия SosedBeri" />
+        <WalletMetric label="Ваши оплаты" value={stats.renterSpend} caption="Аренда + залог + комиссия" />
+      </div>
+
+      <div className="overflow-hidden rounded-[22px] border border-black/5 bg-white">
+        <div className="border-b border-black/5 px-5 py-4">
+          <h3 className="text-xl font-extrabold">История операций</h3>
+          <p className="mt-1 text-sm text-[#6B6B6B]">
+            Формальные операции по оплаченным броням MVP.
+          </p>
+        </div>
+
+        {stats.transactions.length === 0 ? (
+          <EmptyState text="Пока нет оплаченных операций." />
+        ) : (
+          <div className="divide-y divide-black/5">
+            {stats.transactions.slice(0, 12).map((booking) => {
+              const isOwner = booking.items?.owner_id === currentUserId;
+              const rentAmount = getBookingTotal(booking);
+              const depositAmount = getBookingDeposit(booking);
+              const commissionAmount = getBookingCommission(rentAmount);
+
+              return (
+                <div key={`${booking.id}-${isOwner ? "owner" : "renter"}`} className="grid gap-3 p-4 text-sm lg:grid-cols-[1fr_180px_180px] lg:items-center">
+                  <div className="min-w-0">
+                    <div className="font-extrabold">{booking.items?.name || "Бронь"}</div>
+                    <div className="mt-1 text-[#6B6B6B]">
+                      {isOwner ? "Доход от аренды" : "Оплата аренды"} ·{" "}
+                      {booking.updated_at
+                        ? new Date(booking.updated_at).toLocaleDateString("ru-RU")
+                        : new Date(booking.created_at).toLocaleDateString("ru-RU")}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl bg-[#F7F7F5] px-4 py-3">
+                    <div className="text-xs font-bold uppercase text-[#8D8D8D]">
+                      {isOwner ? "Выплата" : "Итого оплаты"}
+                    </div>
+                    <div className="mt-1 text-lg font-extrabold">
+                      {(isOwner ? getOwnerPayout(booking) : getBookingPaymentTotal(booking)).toLocaleString("ru-RU")} ₽
+                    </div>
+                  </div>
+
+                  <div className="text-xs leading-5 text-[#6B6B6B]">
+                    Аренда {rentAmount.toLocaleString("ru-RU")} ₽ · комиссия{" "}
+                    {commissionAmount.toLocaleString("ru-RU")} ₽
+                    {depositAmount > 0 ? ` · залог ${depositAmount.toLocaleString("ru-RU")} ₽` : ""}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WalletMetric({
+  label,
+  value,
+  caption,
+  tone = "default",
+}: {
+  label: string;
+  value: number;
+  caption: string;
+  tone?: "default" | "green";
+}) {
+  return (
+    <div className="rounded-[22px] border border-black/5 bg-white p-5 shadow-sm">
+      <div className="text-sm text-[#6B6B6B]">{label}</div>
+      <div className={`mt-2 text-3xl font-extrabold ${tone === "green" ? "text-[#3F9E47]" : ""}`}>
+        {value.toLocaleString("ru-RU")} ₽
+      </div>
+      <div className="mt-2 text-xs font-bold uppercase text-[#8D8D8D]">{caption}</div>
+    </div>
   );
 }
 
@@ -1430,6 +1660,9 @@ function IncomingBookingRow({
   renterProfile,
   getBookingDays,
   getBookingTotal,
+  getBookingDeposit,
+  getBookingCommission,
+  getBookingPaymentTotal,
   formatDateRange,
   updateBookingStatus,
   handoverReport,
@@ -1444,6 +1677,9 @@ function IncomingBookingRow({
   renterProfile?: any;
   getBookingDays: (booking: any) => number;
   getBookingTotal: (booking: any) => number;
+  getBookingDeposit: (booking: any) => number;
+  getBookingCommission: (rentAmount: number) => number;
+  getBookingPaymentTotal: (booking: any) => number;
   formatDateRange: (booking: any) => string;
   updateBookingStatus: (bookingId: string, status: string) => void;
   handoverReport?: any;
@@ -1457,6 +1693,10 @@ function IncomingBookingRow({
   const renterName = renterProfile?.full_name || renterProfile?.username || "Арендатор";
   const renterInitial = renterName[0]?.toUpperCase() || "А";
   const statusText = getBookingStatusText(booking.status, booking.payment_status);
+  const rentAmount = getBookingTotal(booking);
+  const depositAmount = getBookingDeposit(booking);
+  const commissionAmount = getBookingCommission(rentAmount);
+  const paymentTotal = getBookingPaymentTotal(booking);
   const actionHint = getBookingActionHint(
     booking.status,
     booking.payment_status,
@@ -1500,8 +1740,14 @@ function IncomingBookingRow({
           <span>{formatDateRange(booking)}</span>
           <span>{getBookingDays(booking)} дн.</span>
           <span className="font-bold text-[#111111]">
-            {getBookingTotal(booking).toLocaleString("ru-RU")} ₽
+            {rentAmount.toLocaleString("ru-RU")} ₽
           </span>
+        </div>
+        <div className="mt-3 grid gap-2 rounded-2xl bg-white/80 p-3 text-xs text-[#6B6B6B] sm:grid-cols-2">
+          <span>Комиссия: <b className="text-[#111111]">{commissionAmount.toLocaleString("ru-RU")} ₽</b></span>
+          <span>Выплата: <b className="text-[#111111]">{Math.max(0, rentAmount - commissionAmount).toLocaleString("ru-RU")} ₽</b></span>
+          <span>Залог: <b className="text-[#111111]">{depositAmount.toLocaleString("ru-RU")} ₽</b></span>
+          <span>Оплата клиента: <b className="text-[#111111]">{paymentTotal.toLocaleString("ru-RU")} ₽</b></span>
         </div>
         <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusClass}`}>
           {statusText}
@@ -1582,6 +1828,9 @@ function MyBookingRow({
   ownerProfile,
   getBookingDays,
   getBookingTotal,
+  getBookingDeposit,
+  getBookingCommission,
+  getBookingPaymentTotal,
   formatDateRange,
   handlePayment,
   updateMyBooking,
@@ -1597,6 +1846,9 @@ function MyBookingRow({
   ownerProfile?: any;
   getBookingDays: (booking: any) => number;
   getBookingTotal: (booking: any) => number;
+  getBookingDeposit: (booking: any) => number;
+  getBookingCommission: (rentAmount: number) => number;
+  getBookingPaymentTotal: (booking: any) => number;
   formatDateRange: (booking: any) => string;
   handlePayment: (bookingId: string) => void;
   updateMyBooking: (bookingId: string, updates: Record<string, string>) => void;
@@ -1610,6 +1862,10 @@ function MyBookingRow({
 }) {
   const ownerName = ownerProfile?.full_name || ownerProfile?.username || "Владелец";
   const statusText = getBookingStatusText(booking.status, booking.payment_status);
+  const rentAmount = getBookingTotal(booking);
+  const depositAmount = getBookingDeposit(booking);
+  const commissionAmount = getBookingCommission(rentAmount);
+  const paymentTotal = getBookingPaymentTotal(booking);
   const actionHint = getBookingActionHint(
     booking.status,
     booking.payment_status,
@@ -1644,9 +1900,17 @@ function MyBookingRow({
           <span>{formatDateRange(booking)}</span>
           <span>{getBookingDays(booking)} дн.</span>
           <span className="font-bold text-[#111111]">
-            {getBookingTotal(booking).toLocaleString("ru-RU")} ₽
+            {rentAmount.toLocaleString("ru-RU")} ₽
           </span>
         </div>
+        {booking.status === "approved" && booking.payment_status !== "paid" && (
+          <div className="mt-3 grid gap-2 rounded-2xl bg-[#F7F7F5] p-3 text-xs text-[#6B6B6B] sm:grid-cols-2">
+            <span>Аренда: <b className="text-[#111111]">{rentAmount.toLocaleString("ru-RU")} ₽</b></span>
+            <span>Залог: <b className="text-[#111111]">{depositAmount.toLocaleString("ru-RU")} ₽</b></span>
+            <span>Комиссия: <b className="text-[#111111]">{commissionAmount.toLocaleString("ru-RU")} ₽</b></span>
+            <span>Итого: <b className="text-[#111111]">{paymentTotal.toLocaleString("ru-RU")} ₽</b></span>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">
