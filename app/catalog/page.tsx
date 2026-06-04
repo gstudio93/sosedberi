@@ -932,7 +932,7 @@ function FiltersPanel({
   onSortModeChange: (value: SortMode) => void;
 }) {
   return (
-    <div className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm lg:sticky lg:top-28">
+    <div className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
       <div className="mb-5 flex items-center justify-between gap-3">
         <h2 className="text-xl font-black">Фильтры</h2>
         <button
