@@ -600,7 +600,7 @@ const blockingBookings = bookings.filter((booking) =>
               {isFavorite ? "❤️ В избранном" : "🤍 В избранное"}
             </button>
 
-            <div className="mt-5 rounded-[26px] bg-[#F7F7F5] p-5">
+            <div id="booking-panel" className="mt-5 rounded-[26px] bg-[#F7F7F5] p-5">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black">Даты аренды</h2>
@@ -731,6 +731,30 @@ calendarStartDay={1}
               Формальная оплата появится после одобрения владельцем. Сейчас заявка отправляется владельцу на подтверждение.
             </div>
 
+            <div className="mt-5 rounded-[24px] border border-black/5 bg-[#F7F7F5] p-4">
+              <h2 className="text-lg font-black">Как пройдет аренда</h2>
+              <div className="mt-4 space-y-3">
+                {[
+                  ["1", "Заявка", "Вы выбираете даты и отправляете запрос владельцу."],
+                  ["2", "Подтверждение", "Владелец проверяет даты и подтверждает бронь."],
+                  ["3", "Оплата", "После подтверждения появляется формальная оплата аренды."],
+                  ["4", "Передача и возврат", "Стороны подтверждают передачу и возврат вещи с фото."],
+                ].map(([step, title, text]) => (
+                  <div key={step} className="flex gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-sm font-black text-[#3F9E47]">
+                      {step}
+                    </div>
+                    <div>
+                      <div className="text-sm font-black">{title}</div>
+                      <div className="mt-0.5 text-xs font-bold leading-5 text-[#6B6B6B]">
+                        {text}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <a
               href={`/chat/${item.id}?owner=${item.owner_id}`}
               className="mt-4 block w-full rounded-full border border-black/10 bg-white py-4 text-center text-base font-bold transition hover:bg-[#F7F7F5]"
@@ -856,28 +880,41 @@ calendarStartDay={1}
 )}
 
 {/* MOBILE BOOKING BAR */}
-<div className="fixed bottom-[76px] left-0 right-0 z-[90] border-t border-black/10 bg-white/95 p-3 shadow-2xl backdrop-blur lg:hidden">
-  <div className="flex items-center justify-between gap-4">
+<div className="fixed bottom-[76px] left-0 right-0 z-[90] border-t border-black/10 bg-white/95 px-4 py-3 shadow-2xl backdrop-blur lg:hidden">
+  <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
     <div className="min-w-0">
-      <div className="truncate text-lg font-black">
+      <div className="truncate text-base font-black">
         {startDate && endDate
-          ? `${getTotalPrice().toLocaleString("ru-RU")} ₽`
-          : `${Number(item.price || 0).toLocaleString("ru-RU")} ₽`}
+          ? `${getTotalPrice().toLocaleString("ru-RU")} ₽ за ${getRentalDays()} дн.`
+          : `${Number(item.price || 0).toLocaleString("ru-RU")} ₽ / день`}
       </div>
 
-      <div className="text-xs text-[#6B6B6B]">
+      <div className="mt-0.5 truncate text-xs font-bold text-[#6B6B6B]">
         {startDate && endDate
-          ? `${getRentalDays()} дн. · залог ${getDepositAmount().toLocaleString("ru-RU")} ₽`
-          : "за сутки, выберите даты"}
+          ? `Залог ${getDepositAmount().toLocaleString("ru-RU")} ₽ · ${getSelectedPeriodLabel()}`
+          : "Выберите даты для брони"}
       </div>
     </div>
 
     <button
-      onClick={handleBooking}
-      disabled={!canBook}
-      className="shrink-0 rounded-full bg-[#7BC47F] px-5 py-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#CFCFCB]"
+      onClick={() => {
+        if (canBook) {
+          handleBooking();
+          return;
+        }
+
+        document.getElementById("booking-panel")?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }}
+      className={`shrink-0 rounded-full px-5 py-4 text-sm font-bold transition ${
+        canBook
+          ? "bg-[#7BC47F] text-white hover:bg-[#69B56E]"
+          : "bg-[#111111] text-white"
+      }`}
     >
-      {canBook ? "Забронировать" : "Даты"}
+      {canBook ? "Забронировать" : "Выбрать даты"}
     </button>
   </div>
 </div>
