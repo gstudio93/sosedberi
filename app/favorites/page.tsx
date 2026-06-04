@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import SafeImage from "@/components/SafeImage";
-import { getItemUrl } from "@/lib/item-url";
+import ItemCard from "@/components/ItemCard";
 import { supabase } from "../../lib/supabase";
 
 type Favorite = {
@@ -140,92 +139,16 @@ export default function FavoritesPage() {
             </div>
 
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {visibleFavorites.map((favorite) => {
-                const item = favorite.items!;
-                const location = item.location || item.city || "Местоположение не указано";
-
-                return (
-                  <article
-                    key={favorite.id}
-                    className="group overflow-hidden rounded-[22px] border border-black/5 bg-[#F7F7F5] transition hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    <Link href={getItemUrl(item)} className="block">
-                      <div className="relative aspect-[4/3] overflow-hidden bg-white">
-                        <SafeImage
-                          src={item.image || "/hero.jpg"}
-                          alt={item.name}
-                          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                          fallbackLabel="Фото товара"
-                        />
-
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            removeFavorite(item.id);
-                          }}
-                          className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-lg text-red-500 shadow-sm transition hover:scale-105"
-                          aria-label="Убрать из избранного"
-                        >
-                          ♥
-                        </button>
-
-                        {item.category && (
-                          <div className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-[#111111] shadow-sm">
-                            {item.category}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="p-5">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0">
-                            <h3 className="line-clamp-1 text-lg font-extrabold">
-                              {item.name}
-                            </h3>
-                            <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-snug text-[#6B6B6B]">
-                              {location}
-                            </p>
-                          </div>
-
-                          {item.owner_avatar && (
-                            <SafeImage
-                              src={item.owner_avatar}
-                              alt=""
-                              className="h-10 w-10 shrink-0 rounded-full border-2 border-white object-cover"
-                              fallbackClassName="h-10 w-10 shrink-0 rounded-full border-2 border-white bg-[#7BC47F] text-white"
-                              fallbackLabel={(item.name || "S").slice(0, 1).toUpperCase()}
-                            />
-                          )}
-                        </div>
-
-                        <div className="mt-5 flex items-end justify-between gap-3">
-                          <div>
-                            <div className="text-2xl font-extrabold">
-                              {Number(item.price || 0).toLocaleString("ru-RU")} ₽
-                            </div>
-                            <div className="text-xs font-bold uppercase text-[#8D8D8D]">
-                              в день
-                            </div>
-                          </div>
-
-                          {Number(item.deposit || 0) > 0 && (
-                            <div className="rounded-2xl bg-white px-3 py-2 text-right">
-                              <div className="text-xs font-bold uppercase text-[#8D8D8D]">
-                                Залог
-                              </div>
-                              <div className="text-sm font-extrabold">
-                                {Number(item.deposit).toLocaleString("ru-RU")} ₽
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
-                  </article>
-                );
-              })}
+              {visibleFavorites.map((favorite) => (
+                <ItemCard
+                  key={favorite.id}
+                  favorite
+                  favoriteLabel="Убрать из избранного"
+                  item={favorite.items!}
+                  onFavorite={() => removeFavorite(favorite.items!.id)}
+                  tone="soft"
+                />
+              ))}
             </div>
           </section>
         )}
