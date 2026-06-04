@@ -2089,6 +2089,10 @@ function OwnerItemCard({
   const moderation = getItemModerationLabel(item);
   const publication = getItemPublicationLabel(item);
   const nextAction = getItemNextActionLabel(item);
+  const qualityItems = getItemQualityItems(item);
+  const completedQuality = qualityItems.filter((quality) => quality.done).length;
+  const qualityPercent = Math.round((completedQuality / qualityItems.length) * 100);
+  const editLabel = item.moderation_status === "rejected" ? "Исправить" : "Редактировать";
 
   return (
     <div className="overflow-hidden rounded-[22px] border border-black/5 bg-white transition hover:shadow-md">
@@ -2126,11 +2130,41 @@ function OwnerItemCard({
         </div>
 
         {item.moderation_status === "rejected" && item.moderation_comment && (
-          <div className="mt-3 rounded-2xl bg-red-50 p-3 text-xs leading-relaxed text-red-700">
-            <span className="font-bold">Комментарий администратора: </span>
+          <div className="mt-3 rounded-2xl border border-red-100 bg-red-50 p-3 text-xs leading-relaxed text-red-700">
+            <div className="mb-1 font-black">Причина блокировки</div>
             {item.moderation_comment}
           </div>
         )}
+
+        <div className="mt-3 rounded-2xl bg-[#F7F7F5] p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs font-black uppercase text-[#8D8D8D]">
+              Заполненность
+            </div>
+            <div className="text-sm font-black">{qualityPercent}%</div>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">
+            <div
+              className="h-full rounded-full bg-[#7BC47F]"
+              style={{ width: `${qualityPercent}%` }}
+            />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {qualityItems.map((quality) => (
+              <span
+                key={quality.label}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                  quality.done
+                    ? "bg-[#E8F7EA] text-[#3F9E47]"
+                    : "bg-white text-[#8D8D8D]"
+                }`}
+              >
+                {quality.done ? "✓ " : ""}
+                {quality.label}
+              </span>
+            ))}
+          </div>
+        </div>
 
         <p className="mt-2 line-clamp-2 min-h-[40px] text-sm leading-snug text-[#6B6B6B]">
           {item.location}
@@ -2150,9 +2184,13 @@ function OwnerItemCard({
           </Link>
           <Link
             href={`/add?edit=${item.id}`}
-            className="rounded-full bg-[#F7F7F5] px-4 py-3 text-center text-sm font-bold"
+            className={`rounded-full px-4 py-3 text-center text-sm font-bold ${
+              item.moderation_status === "rejected"
+                ? "bg-red-500 text-white"
+                : "bg-[#F7F7F5] text-[#111111]"
+            }`}
           >
-            Редактировать
+            {editLabel}
           </Link>
           <button
             onClick={() => toggleItemStatus(item.id, item.status)}
@@ -2243,4 +2281,33 @@ function getItemNextActionLabel(item: any) {
     text: "Объявление активно. Следите за входящими заявками и отвечайте в чатах.",
     className: "bg-[#F1FAF2] text-[#2F9A44]",
   };
+}
+
+function getItemQualityItems(item: any) {
+  return [
+    {
+      label: "Фото",
+      done: Boolean(item.image || item.images?.length),
+    },
+    {
+      label: "Описание",
+      done: Boolean(item.description?.trim()),
+    },
+    {
+      label: "Комплект",
+      done: Boolean(item.equipment?.trim()),
+    },
+    {
+      label: "Передача",
+      done: Boolean(item.handover_terms?.trim()),
+    },
+    {
+      label: "Адрес",
+      done: Boolean(item.location?.trim()),
+    },
+    {
+      label: "Залог",
+      done: Number(item.deposit || 0) > 0,
+    },
+  ];
 }
