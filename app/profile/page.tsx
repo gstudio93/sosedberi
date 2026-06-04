@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { getItemUrl } from "@/lib/item-url";
 import { supabase } from "../../lib/supabase";
@@ -715,6 +716,25 @@ export default function ProfilePage() {
   const unpaidApprovedBookings = myBookings.filter(
     (booking) => booking.status === "approved" && booking.payment_status !== "paid"
   );
+  const activeMyBookings = myBookings.filter((booking) =>
+    isActiveBookingStatus(booking.status)
+  );
+  const finishedMyBookings = myBookings.filter((booking) =>
+    isFinishedBookingStatus(booking.status)
+  );
+  const activeIncomingBookings = incomingBookings.filter((booking) =>
+    isActiveBookingStatus(booking.status)
+  );
+  const finishedIncomingBookings = incomingBookings.filter((booking) =>
+    isFinishedBookingStatus(booking.status)
+  );
+  const bookingActionCount =
+    pendingIncoming.length +
+    unpaidApprovedBookings.length +
+    incomingBookings.filter((booking) => booking.status === "return_pending").length +
+    myBookings.filter(
+      (booking) => booking.status === "handover_pending" || booking.status === "active"
+    ).length;
   const completedCount = [
     ...myBookings,
     ...incomingBookings,
@@ -931,12 +951,27 @@ export default function ProfilePage() {
 
           {activeTab === "bookings" && (
             <>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <BookingMetricCard
+                  label="Нужны действия"
+                  value={bookingActionCount}
+                  tone={bookingActionCount > 0 ? "accent" : "neutral"}
+                />
+                <BookingMetricCard label="Мои аренды" value={activeMyBookings.length} />
+                <BookingMetricCard label="Входящие" value={activeIncomingBookings.length} />
+                <BookingMetricCard label="Завершённые" value={completedCount} />
+              </div>
+
               <DashboardSection title="Мои бронирования">
                 {myBookings.length === 0 ? (
                   <EmptyState text="Пока нет бронирований" />
                 ) : (
-                  <div className="space-y-3">
-                    {myBookings.map((booking) => (
+                  <BookingListGroup
+                    activeTitle="Активные аренды"
+                    archiveTitle="Архив моих аренд"
+                    activeItems={activeMyBookings}
+                    archiveItems={finishedMyBookings}
+                    renderItem={(booking) => (
                       <MyBookingRow
                         key={booking.id}
                         booking={booking}
@@ -954,8 +989,8 @@ export default function ProfilePage() {
                         itemReview={getBookingReview(bookingReviews, booking.id, "item")}
                         createBookingReview={createBookingReview}
                       />
-                    ))}
-                  </div>
+                    )}
+                  />
                 )}
               </DashboardSection>
 
@@ -963,8 +998,12 @@ export default function ProfilePage() {
                 {incomingBookings.length === 0 ? (
                   <EmptyState text="Пока нет запросов на ваши вещи" />
                 ) : (
-                  <div className="space-y-3">
-                    {incomingBookings.map((booking) => (
+                  <BookingListGroup
+                    activeTitle="Активные входящие"
+                    archiveTitle="Архив входящих"
+                    activeItems={activeIncomingBookings}
+                    archiveItems={finishedIncomingBookings}
+                    renderItem={(booking) => (
                       <IncomingBookingRow
                         key={booking.id}
                         booking={booking}
@@ -981,8 +1020,8 @@ export default function ProfilePage() {
                         renterReview={getBookingReview(bookingReviews, booking.id, "renter")}
                         createBookingReview={createBookingReview}
                       />
-                    ))}
-                  </div>
+                    )}
+                  />
                 )}
               </DashboardSection>
             </>
@@ -1290,6 +1329,75 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
+function BookingMetricCard({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: number;
+  tone?: "neutral" | "accent";
+}) {
+  return (
+    <div
+      className={`rounded-[22px] border p-4 shadow-sm ${
+        tone === "accent"
+          ? "border-[#7BC47F]/35 bg-[#F1FAF2]"
+          : "border-black/5 bg-white"
+      }`}
+    >
+      <div className="text-3xl font-black">{value}</div>
+      <div className="mt-1 text-xs font-bold uppercase tracking-wide text-[#8D8D8D]">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function BookingListGroup({
+  activeTitle,
+  archiveTitle,
+  activeItems,
+  archiveItems,
+  renderItem,
+}: {
+  activeTitle: string;
+  archiveTitle: string;
+  activeItems: any[];
+  archiveItems: any[];
+  renderItem: (booking: any) => ReactNode;
+}) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="text-lg font-black">{activeTitle}</h3>
+          <span className="rounded-full bg-[#F7F7F5] px-3 py-1 text-xs font-bold text-[#6B6B6B]">
+            {activeItems.length}
+          </span>
+        </div>
+
+        {activeItems.length > 0 ? (
+          <div className="space-y-3">{activeItems.map(renderItem)}</div>
+        ) : (
+          <div className="rounded-[20px] bg-[#F7F7F5] p-5 text-sm font-bold text-[#6B6B6B]">
+            Активных бронирований сейчас нет
+          </div>
+        )}
+      </div>
+
+      {archiveItems.length > 0 && (
+        <details className="rounded-[22px] bg-[#F7F7F5] p-4">
+          <summary className="cursor-pointer text-sm font-black">
+            {archiveTitle} ({archiveItems.length})
+          </summary>
+          <div className="mt-4 space-y-3">{archiveItems.map(renderItem)}</div>
+        </details>
+      )}
+    </div>
+  );
+}
+
 function ProfileShortcut({
   title,
   text,
@@ -1360,7 +1468,7 @@ function IncomingBookingRow({
   const statusClass = getBookingStatusClass(booking.status, booking.payment_status);
 
   return (
-    <div className="grid gap-4 rounded-[20px] border border-[#7BC47F]/25 bg-[#F8FFF8] p-3 md:grid-cols-[110px_minmax(0,1fr)_160px] md:items-center">
+    <div className="grid gap-4 rounded-[24px] border border-[#7BC47F]/25 bg-[#F8FFF8] p-3 shadow-sm md:grid-cols-[112px_minmax(0,1fr)_190px] md:items-start">
       <img
         src={booking.items?.image || "/hero.jpg"}
         alt=""
@@ -1392,14 +1500,14 @@ function IncomingBookingRow({
           <span>{formatDateRange(booking)}</span>
           <span>{getBookingDays(booking)} дн.</span>
           <span className="font-bold text-[#111111]">
-            {getBookingTotal(booking)} ₽
+            {getBookingTotal(booking).toLocaleString("ru-RU")} ₽
           </span>
         </div>
         <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusClass}`}>
           {statusText}
         </span>
         {actionHint && (
-          <div className="mt-2 text-xs leading-relaxed text-[#6B6B6B]">
+          <div className="mt-3 rounded-2xl bg-white/80 px-4 py-3 text-xs font-bold leading-relaxed text-[#5F5F5F]">
             {actionHint}
           </div>
         )}
@@ -1513,7 +1621,7 @@ function MyBookingRow({
   const statusClass = getBookingStatusClass(booking.status, booking.payment_status);
 
   return (
-    <div className="grid gap-4 rounded-[20px] border border-black/5 bg-white p-3 md:grid-cols-[92px_minmax(0,1fr)_140px] md:items-center">
+    <div className="grid gap-4 rounded-[24px] border border-black/5 bg-white p-3 shadow-sm md:grid-cols-[96px_minmax(0,1fr)_180px] md:items-start">
       <img
         src={booking.items?.image || "/hero.jpg"}
         alt=""
@@ -1535,7 +1643,9 @@ function MyBookingRow({
         <div className="mt-2 flex flex-wrap gap-2 text-sm text-[#6B6B6B]">
           <span>{formatDateRange(booking)}</span>
           <span>{getBookingDays(booking)} дн.</span>
-          <span className="font-bold text-[#111111]">{getBookingTotal(booking)} ₽</span>
+          <span className="font-bold text-[#111111]">
+            {getBookingTotal(booking).toLocaleString("ru-RU")} ₽
+          </span>
         </div>
       </div>
 
@@ -1544,7 +1654,7 @@ function MyBookingRow({
         {statusText}
       </span>
       {actionHint && (
-        <div className="rounded-2xl bg-[#F7F7F5] px-3 py-2 text-xs leading-relaxed text-[#6B6B6B]">
+        <div className="rounded-2xl border border-black/5 bg-[#F7F7F5] px-3 py-2 text-xs font-bold leading-relaxed text-[#5F5F5F]">
           {actionHint}
         </div>
       )}
@@ -1603,6 +1713,14 @@ function MyBookingRow({
       </div>
     </div>
   );
+}
+
+function isFinishedBookingStatus(status: string) {
+  return ["completed", "cancelled", "rejected"].includes(status);
+}
+
+function isActiveBookingStatus(status: string) {
+  return !isFinishedBookingStatus(status);
 }
 
 function getBookingStatusText(status: string, paymentStatus?: string) {
