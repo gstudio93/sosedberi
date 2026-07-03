@@ -693,6 +693,9 @@ export default function ProfilePage() {
     const { error } = await supabase.auth.resend({
       type: "signup",
       email: currentUser.email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/profile`,
+      },
     });
 
     if (error) {

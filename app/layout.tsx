@@ -23,12 +23,12 @@ export const metadata: Metadata = {
   description:
     "SosedBeri помогает брать и сдавать вещи в аренду рядом: инструменты, технику, товары для отдыха и дома.",
   applicationName: "SosedBeri",
-  metadataBase: new URL("https://sosedberi.vercel.app"),
+  metadataBase: new URL("https://sosedberi.ru"),
   openGraph: {
     title: "SosedBeri — аренда вещей рядом",
     description:
       "Берите нужные вещи у соседей и сдавайте свои вещи в аренду.",
-    url: "https://sosedberi.vercel.app",
+    url: "https://sosedberi.ru",
     siteName: "SosedBeri",
     locale: "ru_RU",
     type: "website",

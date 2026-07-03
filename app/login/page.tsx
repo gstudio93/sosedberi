@@ -24,6 +24,9 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/login`,
+      },
     });
 
     setLoading(false);
@@ -67,6 +70,9 @@ export default function LoginPage() {
     const { error } = await supabase.auth.resend({
       type: "signup",
       email: email.trim(),
+      options: {
+        emailRedirectTo: `${window.location.origin}/login`,
+      },
     });
 
     setLoading(false);
